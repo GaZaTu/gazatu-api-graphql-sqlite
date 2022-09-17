@@ -17,7 +17,7 @@ export type InferGraphQLType<O> =
               ? Exclude<InferGraphQLType<T>, null | undefined>
               : O extends GraphQLList<infer T> & { wrapper: "list" }
                 ? Array<InferGraphQLType<T>> | null | undefined
-                : never
+                : unknown
 
 export type InferedGraphQLFieldResolver<T, C, A, O extends GraphQLOutputType> = GraphQLFieldResolver<T, C, A, InferGraphQLType<O> | Promise<InferGraphQLType<O>>>
 
@@ -31,8 +31,8 @@ function gqlResolver<T, C, A extends GraphQLFieldConfigArgumentMap, O extends Gr
 
 export default gqlResolver
 
-export const gqlType = <T extends GraphQLNullableType>(type: T) =>
-  Object.assign(new GraphQLNonNull(type), { wrapper: "nonnull" as const })
+export const gqlType = <T extends GraphQLNullableType>(ofType: T) =>
+  Object.assign(new GraphQLNonNull(ofType), { wrapper: "nonnull" as const })
 
 export const gqlString = () =>
   gqlType(GraphQLString)
@@ -46,8 +46,8 @@ export const gqlNumber = () =>
 export const gqlBoolean = () =>
   gqlType(GraphQLBoolean)
 
-export const gqlArray = <T extends GraphQLType>(type: T) =>
-  gqlType(Object.assign(new GraphQLList(type), { wrapper: "list" as const }))
+export const gqlArray = <T extends GraphQLType>(ofType: T) =>
+  gqlType(Object.assign(new GraphQLList(ofType), { wrapper: "list" as const }))
 
 export const gqlNullable = <T extends GraphQLNullableType>(nonnull: GraphQLNonNull<T>) =>
   nonnull.ofType

@@ -146,7 +146,7 @@ const databaseBeforeClose = async (database: sqlite3.Database) => {
   await exec(database, "PRAGMA optimize")
 }
 
-const open = async () => {
+const open = async (options = { trace: true }) => {
   await mkdir(`${__dirname}/../../data`, { recursive: true })
 
   const file = `${__dirname}/../../data/database.sqlite3`
@@ -164,9 +164,15 @@ const open = async () => {
     })
   })
 
-  database.on("trace", sql => {
-    console.log("[trace]", sql)
-  })
+  if (options.trace && process.env.NODE_ENV !== "production") {
+    database.on("trace", sql => {
+      if (sql.startsWith("PRAGMA")) {
+        return
+      }
+
+      console.log(`${sql};`)
+    })
+  }
 
   return Object.assign(database, {
     close: async () => {
@@ -200,20 +206,14 @@ class DatabaseApi {
         return []
       }
 
-      try {
-        this._options?._beforeExec?.(this._database)
+      this._options?._beforeExec?.(this._database)
 
-        const rows = await all(this._database, query, values)
-        if (!rows) {
-          return []
-        }
-
-        return rows
-      } catch (error) {
-        console.log(query, values)
-        console.error(error)
-        throw error
+      const rows = await all(this._database, query, values)
+      if (!rows) {
+        return []
       }
+
+      return rows
     }
 
     const execUpdate = (query: string, values: any[]) => {
@@ -254,11 +254,13 @@ class DatabaseApi {
   }
 }
 
-export const connect = async () => {
-  const databaseApi = new DatabaseApi(await open())
+const connectDatabase = async (options = { trace: true }) => {
+  const databaseApi = new DatabaseApi(await open(options))
 
   return [
     databaseApi.database!,
     databaseApi.repository,
   ] as const
 }
+
+export default connectDatabase

@@ -3,7 +3,7 @@ import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType } from "../../li
 import { Complexity } from "../../lib/graphql-complexity.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
-import { SchemaContext, SchemaFields } from "../index.js"
+import type { SchemaContext, SchemaFields } from "../schema.js"
 
 export const TriviaCategorySchema = object({
   id: optional(nullable(string())),
@@ -12,6 +12,8 @@ export const TriviaCategorySchema = object({
   submitter: optional(nullable(string())),
   verified: optional(nullable(boolean())),
   disabled: optional(nullable(boolean())),
+  createdAt: optional(nullable(string())),
+  updatedAt: optional(nullable(string())),
 })
 
 export const [

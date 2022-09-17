@@ -108,7 +108,6 @@ CREATE TABLE "TriviaCategory" (
 -- BEGIN TriviaQuestion --
 CREATE TABLE "TriviaQuestion" (
   "id" BIT(128) NOT NULL,
-  "categoryId" BIT(128) NOT NULL,
   "question" VARCHAR(512) NOT NULL,
   "answer" VARCHAR(256) NOT NULL,
   "hint1" VARCHAR(256),
@@ -120,7 +119,6 @@ CREATE TABLE "TriviaQuestion" (
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedByUserId" BIT(128),
-  FOREIGN KEY ("categoryId") REFERENCES "TriviaCategory" ("id") ON DELETE RESTRICT,
   FOREIGN KEY ("submitterUserId") REFERENCES "User" ("id") ON DELETE SET NULL,
   FOREIGN KEY ("updatedByUserId") REFERENCES "User" ("id") ON DELETE SET NULL,
   PRIMARY KEY ("id")
@@ -137,7 +135,7 @@ CREATE VIRTUAL TABLE "TriviaQuestionFTS" USING fts5 (
   "hint1",
   "hint2",
   "submitter",
-  "SELECT name FROM TriviaCategory WHERE id = $SRC.categoryId",
+  "SELECT group_concat(cat.name) FROM N2M_TriviaQuestion_TriviaCategory n2m JOIN TriviaCategory cat ON cat.id = n2m.categoryId WHERE n2m.questionId = $SRC.id",
   prefix = '3 4 5',
   tokenize = 'porter unicode61',
   content = 'TriviaQuestion'
@@ -151,6 +149,19 @@ INSERT INTO "TriviaQuestionFTS" (
 );
 !!CREATE_FTS_SYNC_TRIGGERS('TriviaQuestion', 'TriviaQuestionFTS');
 -- END TriviaQuestion --
+
+-- BEGIN N2M_TriviaQuestion_TriviaCategory --
+CREATE TABLE "N2M_TriviaQuestion_TriviaCategory" (
+  "questionId" BIT(128) NOT NULL,
+  "categoryId" BIT(128) NOT NULL,
+  FOREIGN KEY ("questionId") REFERENCES "TriviaQuestion" ("id") ON DELETE CASCADE,
+  FOREIGN KEY ("categoryId") REFERENCES "TriviaCategory" ("id") ON DELETE CASCADE,
+  PRIMARY KEY ("questionId", "categoryId")
+);
+
+CREATE INDEX "idx_N2M_TriviaQuestion_TriviaCategory_questionId" ON "N2M_TriviaQuestion_TriviaCategory" ("questionId");
+CREATE INDEX "idx_N2M_TriviaQuestion_TriviaCategory_categoryId" ON "N2M_TriviaQuestion_TriviaCategory" ("categoryId");
+-- END N2M_TriviaQuestion_TriviaCategory --
 
 -- BEGIN TriviaReport --
 CREATE TABLE "TriviaReport" (

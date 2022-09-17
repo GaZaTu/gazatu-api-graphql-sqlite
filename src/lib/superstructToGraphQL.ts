@@ -1,11 +1,12 @@
-import { GraphQLBoolean, GraphQLFieldConfig, GraphQLFieldConfigMap, GraphQLFloat, GraphQLID, GraphQLInputFieldConfig, GraphQLInputFieldConfigMap, GraphQLInputObjectType, GraphQLInputObjectTypeConfig, GraphQLInt, GraphQLInterfaceType, GraphQLInterfaceTypeConfig, GraphQLNonNull, GraphQLObjectType, GraphQLObjectTypeConfig, GraphQLString, GraphQLType } from "graphql"
+import { GraphQLBoolean, GraphQLFieldConfig, GraphQLFieldConfigMap, GraphQLFloat, GraphQLID, GraphQLInputFieldConfig, GraphQLInputFieldConfigMap, GraphQLInputObjectType, GraphQLInputObjectTypeConfig, GraphQLInt, GraphQLInterfaceType, GraphQLInterfaceTypeConfig, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLObjectTypeConfig, GraphQLString, GraphQLType } from "graphql"
 import { Struct } from "superstruct"
 import superstructIsRequired from "./superstructIsRequired.js"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mapping = new Map<Struct<any, any>, GraphQLType>()
 
-export function superstructToGraphQLScalar<T, S>(struct: Struct<T, S>) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function superstructToGraphQLScalar<T, S>(struct: Struct<T, S>): readonly [any, T | undefined] {
   const graphqlType = (() => {
     const existing = mapping.get(struct)
     if (existing) {
@@ -19,6 +20,11 @@ export function superstructToGraphQLScalar<T, S>(struct: Struct<T, S>) {
       case "integer": return GraphQLInt
       case "number": return GraphQLFloat
       case "boolean": return GraphQLBoolean
+      case "array": {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const [childType] = superstructToGraphQLScalar(struct.schema as any)
+        return new GraphQLList(childType)
+      }
       default:
         console.error(struct)
         throw new Error(`struct.type ${struct.type}`)

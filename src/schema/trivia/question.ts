@@ -1,15 +1,20 @@
-import { boolean, Infer, nullable, object, optional, string } from "superstruct"
-import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType, gqlUnknown } from "../../lib/gqlResolver.js"
+import DataLoader from "dataloader"
+import { array, boolean, Infer, nullable, object, optional, string } from "superstruct"
+import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType } from "../../lib/gqlResolver.js"
 import { Complexity } from "../../lib/graphql-complexity.js"
+import { sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
-import { SchemaContext, SchemaFields } from "../index.js"
-import { TriviaCategoryGraphQL, TriviaCategorySchema, TriviaCategorySQL } from "./category.js"
+import { findManyPaginated, gqlPagination, gqlPaginationArgs } from "../pagination.js"
+import type { SchemaContext, SchemaFields } from "../schema.js"
+import { applySearchToQuery, applySortToQuery, gqlSearchArgs, gqlSortArgs } from "../searching.js"
+import { TriviaCategory, TriviaCategoryGraphQL, TriviaCategorySchema, TriviaCategorySQL } from "./category.js"
+
+const triviaCategoriesDataLoader = Symbol()
 
 export const TriviaQuestionSchema = object({
   id: optional(nullable(string())),
-  categoryId: string(),
-  category: TriviaCategorySchema,
+  categories: array(TriviaCategorySchema),
   question: string(),
   answer: string(),
   hint1: optional(nullable(string())),
@@ -17,6 +22,8 @@ export const TriviaQuestionSchema = object({
   submitter: optional(nullable(string())),
   verified: optional(nullable(boolean())),
   disabled: optional(nullable(boolean())),
+  createdAt: optional(nullable(string())),
+  updatedAt: optional(nullable(string())),
 })
 
 export const [
@@ -25,13 +32,32 @@ export const [
 ] = superstructToGraphQL<SchemaContext>()(TriviaQuestionSchema, {
   name: "TriviaQuestion",
   fields: {
-    categoryId: { type: gqlUnknown() },
-    category: gqlResolver({
-      type: gqlType(TriviaCategoryGraphQL),
-      resolve: async (self, args, { db }) => {
-        const result = await db.of(TriviaCategorySQL)
-          .findOneById(self.categoryId)
-        return result!
+    categories: gqlResolver({
+      type: gqlArray(gqlType(TriviaCategoryGraphQL)),
+      resolve: async (self, args, ctx) => {
+        const { db } = ctx
+
+        let dataloader = ctx[triviaCategoriesDataLoader] as DataLoader<string, TriviaCategory[]> | undefined
+        if (!dataloader) {
+          dataloader = new DataLoader(async ids => {
+            const n2m = await db
+              .select(TriviaCategorySQL)
+              .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
+              .from(N2MTriviaQuestionTriviaCategorySQL)
+              .join(TriviaCategorySQL).on(sql`${TriviaCategorySQL.schema.id} = ${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId}`)
+              .where(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.questionId} IN ${ids}`)
+              .findMany(TriviaCategorySQL)
+
+            return ids
+              .map(id => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                return n2m.filter(cat => (cat as any).questionId === id)
+              })
+          }, { maxBatchSize: 100 })
+          ctx[triviaCategoriesDataLoader] = dataloader
+        }
+
+        return dataloader.load(self.id!)
       },
       extensions: {
         complexity: Complexity.VIRTUAL_FIELD,
@@ -47,6 +73,26 @@ export const [
 })
 
 export type TriviaQuestion = Infer<typeof TriviaQuestionSchema>
+
+export const N2MTriviaQuestionTriviaCategorySchema = object({
+  questionId: string(),
+  categoryId: string(),
+})
+
+export const [
+  N2MTriviaQuestionTriviaCategorySQL,
+] = superstructToSQL(N2MTriviaQuestionTriviaCategorySchema, {
+  name: `N2M_${TriviaQuestionSQL}_${TriviaCategorySQL}`,
+})
+
+export const TriviaQuestionFTSSchema = object({
+})
+
+export const [
+  TriviaQuestionFTSSQL,
+] = superstructToSQL(TriviaQuestionFTSSchema, {
+  name: `${TriviaQuestionSQL}FTS`,
+})
 
 export const triviaQuestionResolver: SchemaFields = {
   query: {
@@ -67,10 +113,24 @@ export const triviaQuestionResolver: SchemaFields = {
       },
     }),
     triviaQuestions: gqlResolver({
-      type: gqlArray(gqlType(TriviaQuestionGraphQL)),
+      type: gqlPagination(gqlType(TriviaQuestionGraphQL)),
+      args: {
+        ...gqlPaginationArgs,
+        ...gqlSortArgs,
+        ...gqlSearchArgs,
+      },
       resolve: async (self, args, { db }) => {
-        const result = await db.of(TriviaQuestionSQL)
-          .findMany()
+        const result = await findManyPaginated(TriviaQuestionSQL, args, () => {
+          const query = db
+            .select(TriviaQuestionSQL)
+            .from(TriviaQuestionSQL)
+
+          applySortToQuery(query, TriviaQuestionSQL, args)
+          applySearchToQuery(query, TriviaQuestionSQL, args, TriviaQuestionFTSSQL)
+
+          return query
+        })
+
         return result
       },
       extensions: {
@@ -86,14 +146,21 @@ export const triviaQuestionResolver: SchemaFields = {
       },
       resolve: async (_, { input: _input }, { db }) => {
         const {
-          category,
+          categories,
           ...input
         } = _input
 
-        input.categoryId = category.id!
-
         const [result] = await db.of(TriviaQuestionSQL)
           .save(input)
+
+        for (const category of categories) {
+          await db.of(N2MTriviaQuestionTriviaCategorySQL)
+            .save({
+              questionId: result.id!,
+              categoryId: category.id!,
+            })
+        }
+
         return result
       },
       extensions: {

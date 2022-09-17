@@ -1,11 +1,15 @@
-import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema, printSchema } from "graphql"
-import gqlToTs from "../lib/gqlToTs.js"
+import Router from "@koa/router"
+import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql"
+import { DefaultContext, DefaultState, ParameterizedContext } from "koa"
 import { DatabaseRepository } from "../lib/querybuilder.js"
 import { triviaCategoryResolver } from "./trivia/category.js"
 import { triviaQuestionResolver } from "./trivia/question.js"
 
 export type SchemaContext = {
+  ctx: ParameterizedContext<DefaultState, DefaultContext & Router.RouterParamContext<DefaultState, DefaultContext>, unknown>
   db: DatabaseRepository
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: symbol]: any
 }
 
 export type SchemaFields = {
@@ -33,6 +37,3 @@ const schema = new GraphQLSchema({
 })
 
 export default schema
-
-export const schemaAsGQL = printSchema(schema)
-export const schemaAsTS = gqlToTs(schemaAsGQL)

@@ -6,10 +6,18 @@
   "scripts": {
     "start": "tsc-watch --onSuccess \"node ./dist/index.js\"",
     "build": "tsc",
-    "index": "npm run build && node dist/index.js"
+    "index": "node dist/index.js",
+    "import": "node dist/importPreviousData.js"
   },
   "license": "ISC",
   "devDependencies": {
+    "@types/config": "^3.3.0",
+    "@types/koa": "^2.13.5",
+    "@types/koa__cors": "^3.3.0",
+    "@types/koa__router": "^12.0.0",
+    "@types/koa-json": "^2.0.20",
+    "@types/koa-json-error": "^3.1.4",
+    "@types/koa-logger": "^3.1.2",
     "@types/node": "^18.7.18",
     "@typescript-eslint/eslint-plugin": "^5.37.0",
     "@typescript-eslint/parser": "^5.37.0",
@@ -18,9 +26,19 @@
     "typescript": "^4.8.3"
   },
   "dependencies": {
+    "@koa/cors": "^3.4.1",
+    "@koa/router": "^12.0.0",
+    "config": "^3.3.8",
     "dataloader": "^2.1.0",
     "graphql": "github:GaZaTu/graphql-js",
     "graphql-query-complexity": "^0.12.0",
+    "koa": "^2.13.4",
+    "koa-body": "^5.0.0",
+    "koa-json": "^2.0.2",
+    "koa-json-error": "^3.1.2",
+    "koa-jwt": "^4.0.3",
+    "koa-logger": "^3.2.1",
+    "node-fetch": "^3.2.10",
     "sqlite3": "^5.1.1",
     "superstruct": "^0.16.0",
     "ulid": "^2.3.0"

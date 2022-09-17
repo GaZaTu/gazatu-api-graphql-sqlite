@@ -177,6 +177,10 @@ export class SqlField<T = any> extends SqlExpr {
     private _source?: string,
   ) {
     super(null, SqlOperator.CUSTOM, null)
+
+    if (this._name.includes(".")) {
+      [this._source, this._name] = this._name.split(".")
+    }
   }
 
   get name() {
@@ -329,8 +333,8 @@ export type QueryBuilderData = {
   groupings?: SqlField[]
   groupingConditions?: SqlExpr[]
   ordering?: QueryBuilderOrderClause[]
-  offset?: number
-  limit?: number
+  offset?: number | null
+  limit?: number | null
   upsert?: QueryBuilderUpsertMode
   distinct?: boolean
 }
@@ -479,13 +483,13 @@ export class Selector implements HasQuery, HasValues {
     return this
   }
 
-  offset(offset: number | undefined) {
+  offset(offset: number | null | undefined) {
     this._data.offset = offset
 
     return this
   }
 
-  limit(limit: number | undefined) {
+  limit(limit: number | null | undefined) {
     this._data.limit = limit
 
     return this
@@ -889,6 +893,14 @@ export abstract class DatabaseRepository {
   private _dataloaders = new Map<string | SQLEntity, Dataloader<string, any>>()
 
   of<T extends Record<string, any> = Record<string, any>>(table: string | SQLEntity<T>) {
+    const hasIdColumn = (() => {
+      if (typeof table === "string") {
+        return true
+      }
+
+      return !!table.schema.id
+    })()
+
     const count = (condition?: SqlExpr) => {
       return this
         .select(["count(*)"])
@@ -933,8 +945,6 @@ export abstract class DatabaseRepository {
       let dataloader = this._dataloaders.get(table)
       if (!dataloader) {
         dataloader = new Dataloader(async ids => {
-          console.log("DATALOADER", ids)
-
           const map = new Map(
             (await findManyById(ids as any[]))
               .map(r => [r["id"], r] as const)
@@ -973,7 +983,7 @@ export abstract class DatabaseRepository {
       }
 
       for (const object of objects) {
-        if (!object.id) {
+        if (!object.id && hasIdColumn) {
           Object.assign(object, {
             id: this.newId(),
           })
@@ -981,7 +991,7 @@ export abstract class DatabaseRepository {
 
         const qb = this.insert()
           .into(table)
-          .onConflict(["id"]).doMerge()
+          .onConflict(hasIdColumn ? ["id"] : undefined).doMerge()
 
         for (const [key, value] of Object.entries(object)) {
           if (key.startsWith("_") || value === undefined) {
@@ -992,7 +1002,10 @@ export abstract class DatabaseRepository {
         }
 
         await qb.execute()
-        Object.assign(object, await findOneByIdWithDataloader(object.id as any))
+
+        if (hasIdColumn) {
+          Object.assign(object, await findOneByIdWithDataloader(object.id as any))
+        }
       }
 
       return objects as T[]
@@ -1145,11 +1158,29 @@ export abstract class DatabaseRepository {
   }
 }
 
-export type SQLEntity<T = any> = {
-  entityName: string
-  coerce: (r: Record<string, any>) => T
+export class SQLEntity<T = any> extends SqlField {
+  constructor(
+    public entityName: string,
+    public coerce: (r: Record<string, any>) => T,
+    public schema: {
+      [P in keyof T]: SqlField<T[P]>
+    },
+    public as: (alias: string) => {
+      [P in keyof T]: SqlField<T[P]>
+    },
+  ) {
+    super(entityName)
+  }
+
+  get query() {
+    return `"${this.entityName}"`
+  }
+
+  toString() {
+    return this.entityName
+  }
 }
 
 export const isSQLEntity = (v: any): v is SQLEntity => {
-  return !!v.entityName
+  return v instanceof SQLEntity
 }
