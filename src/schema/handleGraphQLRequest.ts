@@ -12,7 +12,7 @@ const GraphQLRequest = object({
   operationName: optional(string()),
 })
 
-const handleGraphQLRequest = async (request: Infer<typeof GraphQLRequest> & { context: Omit<SchemaContext, "db"> }) => {
+export const executeGraphQL = async (request: Infer<typeof GraphQLRequest> & { context: SchemaContext }) => {
   const {
     query,
     variables,
@@ -37,17 +37,26 @@ const handleGraphQLRequest = async (request: Infer<typeof GraphQLRequest> & { co
     throw new GraphQLError(`Query is too complex: ${complexity}. Maximum allowed complexity: ${Complexity.MAX}`)
   }
 
+  return await execute({
+    schema,
+    document,
+    variableValues: variables,
+    operationName,
+    contextValue: {
+      ...context,
+    },
+  })
+}
+
+const handleGraphQLRequest = async (request: Infer<typeof GraphQLRequest> & { context: Omit<SchemaContext, "db"> }) => {
   const [db, dbApi] = await connectDatabase()
 
   try {
     return await dbApi.transaction(async () => {
-      return await execute({
-        schema,
-        document,
-        variableValues: variables,
-        operationName,
-        contextValue: {
-          ...context,
+      return await executeGraphQL({
+        ...request,
+        context: {
+          ...request.context,
           db: dbApi,
         },
       })
@@ -66,7 +75,7 @@ graphqlRouter.post("/graphql", async ctx => {
   const response = await handleGraphQLRequest({
     ...request,
     context: {
-      ctx,
+      http: ctx,
     },
   })
 

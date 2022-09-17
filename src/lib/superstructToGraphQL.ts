@@ -3,12 +3,14 @@ import { Struct } from "superstruct"
 import superstructIsRequired from "./superstructIsRequired.js"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapping = new Map<Struct<any, any>, GraphQLType>()
+const mappingInput = new Map<Struct<any, any>, GraphQLType>()
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mappingOutput = new Map<Struct<any, any>, GraphQLType>()
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function superstructToGraphQLScalar<T, S>(struct: Struct<T, S>): readonly [any, T | undefined] {
+export function superstructToGraphQLScalar<T, S>(kind: "input" | "output", struct: Struct<T, S>): readonly [any, T | undefined] {
   const graphqlType = (() => {
-    const existing = mapping.get(struct)
+    const existing = (kind === "input" ? mappingInput : mappingOutput).get(struct)
     if (existing) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return existing as any
@@ -22,7 +24,7 @@ export function superstructToGraphQLScalar<T, S>(struct: Struct<T, S>): readonly
       case "boolean": return GraphQLBoolean
       case "array": {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const [childType] = superstructToGraphQLScalar(struct.schema as any)
+        const [childType] = superstructToGraphQLScalar(kind, struct.schema as any)
         return new GraphQLList(childType)
       }
       default:
@@ -43,6 +45,8 @@ export function superstructToGraphQLType<T, S, C>(Type: typeof GraphQLObjectType
 export function superstructToGraphQLType<T, S>(Type: typeof GraphQLInputObjectType, struct: Struct<T, S>, config: GraphQLInputObjectTypeConfig): GraphQLInputObjectType & { struct: Struct<T, S> }
 export function superstructToGraphQLType<T, S, C>(Type: typeof GraphQLInterfaceType, struct: Struct<T, S>, config: GraphQLInterfaceTypeConfig<T, C>): GraphQLInterfaceType & { struct: Struct<T, S> }
 export function superstructToGraphQLType<T, S, C>(Type: (typeof GraphQLObjectType) | (typeof GraphQLInputObjectType) | (typeof GraphQLInterfaceType), struct: Struct<T, S>, config: GraphQLObjectTypeConfig<T, C> | GraphQLInputObjectTypeConfig | GraphQLInterfaceTypeConfig<T, C>): InstanceType<typeof Type> & { struct: Struct<T, S> } {
+  const kind = (Type === GraphQLInputObjectType) ? "input" : "output"
+
   const graphqlType = new Type({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...(config as any),
@@ -53,7 +57,7 @@ export function superstructToGraphQLType<T, S, C>(Type: (typeof GraphQLObjectTyp
       if (struct.schema) {
         if (typeof struct.schema === "object") {
           for (const [prop, propStruct] of Object.entries(struct.schema)) {
-            const [type, defaultValue] = superstructToGraphQLScalar(propStruct)
+            const [type, defaultValue] = superstructToGraphQLScalar(kind, propStruct)
 
             fields[prop] = {
               type,
@@ -73,7 +77,7 @@ export function superstructToGraphQLType<T, S, C>(Type: (typeof GraphQLObjectTyp
     },
   })
 
-  mapping.set(struct, graphqlType)
+  void (kind === "input" ? mappingInput : mappingOutput).set(struct, graphqlType)
 
   return Object.assign(graphqlType, {
     struct,

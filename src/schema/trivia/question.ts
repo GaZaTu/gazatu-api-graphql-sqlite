@@ -1,16 +1,15 @@
-import DataLoader from "dataloader"
 import { array, boolean, Infer, nullable, object, optional, string } from "superstruct"
 import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType } from "../../lib/gqlResolver.js"
 import { Complexity } from "../../lib/graphql-complexity.js"
-import { sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
+import getN2MDataLoaderFromContext from "../getN2MDataLoaderFromContext.js"
 import { findManyPaginated, gqlPagination, gqlPaginationArgs } from "../pagination.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
 import { applySearchToQuery, applySortToQuery, gqlSearchArgs, gqlSortArgs } from "../searching.js"
-import { TriviaCategory, TriviaCategoryGraphQL, TriviaCategorySchema, TriviaCategorySQL } from "./category.js"
+import { TriviaCategoryGraphQL, TriviaCategorySchema, TriviaCategorySQL } from "./category.js"
 
-const triviaCategoriesDataLoader = Symbol()
+const triviaQuestionCategoriesDataLoader = Symbol()
 
 export const TriviaQuestionSchema = object({
   id: optional(nullable(string())),
@@ -35,29 +34,10 @@ export const [
     categories: gqlResolver({
       type: gqlArray(gqlType(TriviaCategoryGraphQL)),
       resolve: async (self, args, ctx) => {
-        const { db } = ctx
+        const dataloader = getN2MDataLoaderFromContext(ctx, triviaQuestionCategoriesDataLoader, TriviaCategorySQL, N2MTriviaQuestionTriviaCategorySQL, "questionId", "categoryId")
 
-        let dataloader = ctx[triviaCategoriesDataLoader] as DataLoader<string, TriviaCategory[]> | undefined
-        if (!dataloader) {
-          dataloader = new DataLoader(async ids => {
-            const n2m = await db
-              .select(TriviaCategorySQL)
-              .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
-              .from(N2MTriviaQuestionTriviaCategorySQL)
-              .join(TriviaCategorySQL).on(sql`${TriviaCategorySQL.schema.id} = ${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId}`)
-              .where(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.questionId} IN ${ids}`)
-              .findMany(TriviaCategorySQL)
-
-            return ids
-              .map(id => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                return n2m.filter(cat => (cat as any).questionId === id)
-              })
-          }, { maxBatchSize: 100 })
-          ctx[triviaCategoriesDataLoader] = dataloader
-        }
-
-        return dataloader.load(self.id!)
+        const result = await dataloader.load(self.id!)
+        return result
       },
       extensions: {
         complexity: Complexity.VIRTUAL_FIELD,

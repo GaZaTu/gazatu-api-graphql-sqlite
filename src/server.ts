@@ -49,7 +49,9 @@ const getHttpsConfig = () => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const createKoa = (middlewares: Koa.Middleware<any, any>[]) => {
-  const koa = new Koa()
+  const koa = new Koa({
+    proxy: true,
+  })
 
   koa.use(cors({
     origin: "*",
