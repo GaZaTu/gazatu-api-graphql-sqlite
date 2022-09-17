@@ -1,8 +1,8 @@
 /* eslint-disable no-empty */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { DatabaseRepository, Deleter, Inserter, QueryBuilderData, QueryBuilderUpsertMode, Selector, SQLEntity, SqlExpr, SqlField, SqlOperator, Updater } from "./querybuilder.js"
 import { ulid } from "ulid"
+import { DatabaseRepository, Deleter, Inserter, QueryBuilderData, QueryBuilderUpsertMode, Selector, SQLEntity, SqlExpr, SqlField, SqlOperator, Updater } from "./querybuilder.js"
 
 const createSelectScript = (data: QueryBuilderData) => {
   let script = "SELECT"

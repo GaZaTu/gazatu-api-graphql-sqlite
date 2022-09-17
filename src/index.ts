@@ -1,10 +1,10 @@
 import { graphql, GraphQLError, parse } from "graphql"
-import schema, { schemaAsGQL, schemaAsTS } from "./schema/index.js"
-import { writeFile, mkdir } from "node:fs/promises"
+import { fieldExtensionsEstimator, getComplexity, simpleEstimator } from "graphql-query-complexity"
+import { mkdir, writeFile } from "node:fs/promises"
+import { Complexity } from "./lib/graphql-complexity.js"
 import moduleDir from "./lib/moduleDir.js"
 import { connect } from "./schema/database.js"
-import { getComplexity, fieldExtensionsEstimator, simpleEstimator } from "graphql-query-complexity"
-import { COMPLEXITY_DEFAULT, COMPLEXITY_MAX } from "./lib/graphql-complexity.js"
+import schema, { schemaAsGQL, schemaAsTS } from "./schema/index.js"
 
 const __dirname = moduleDir(import.meta.url)
 
@@ -13,14 +13,14 @@ const handleGraphQLRequest = async (options: { query: string, variables?: Record
     schema,
     estimators: [
       fieldExtensionsEstimator(),
-      simpleEstimator({ defaultComplexity: COMPLEXITY_DEFAULT }),
+      simpleEstimator({ defaultComplexity: Complexity.DEFAULT }),
     ],
     query: parse(options.query, { maxTokens: 100 }),
     variables: options.variables,
   })
 
-  if (complexity > COMPLEXITY_MAX) {
-    throw new GraphQLError(`Query is too complex: ${complexity}. Maximum allowed complexity: ${COMPLEXITY_MAX}`)
+  if (complexity > Complexity.MAX) {
+    throw new GraphQLError(`Query is too complex: ${complexity}. Maximum allowed complexity: ${Complexity.MAX}`)
   }
 
   const [db, dbApi] = await connect()

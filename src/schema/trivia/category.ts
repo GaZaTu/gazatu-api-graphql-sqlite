@@ -1,6 +1,6 @@
 import { boolean, Infer, nullable, object, optional, string } from "superstruct"
 import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType } from "../../lib/gqlResolver.js"
-import { COMPLEXITY_MUTATION, COMPLEXITY_PAGINATION, COMPLEXITY_SIMPLE_QUERY } from "../../lib/graphql-complexity.js"
+import { Complexity } from "../../lib/graphql-complexity.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import { SchemaContext, SchemaFields } from "../index.js"
@@ -45,7 +45,7 @@ export const triviaCategoryResolver: SchemaFields = {
         return result
       },
       extensions: {
-        complexity: COMPLEXITY_SIMPLE_QUERY,
+        complexity: Complexity.SIMPLE_QUERY,
       },
     }),
     triviaCategories: gqlResolver({
@@ -56,7 +56,7 @@ export const triviaCategoryResolver: SchemaFields = {
         return result
       },
       extensions: {
-        complexity: COMPLEXITY_PAGINATION,
+        complexity: Complexity.PAGINATION,
       },
     }),
   },
@@ -72,7 +72,7 @@ export const triviaCategoryResolver: SchemaFields = {
         return result
       },
       extensions: {
-        complexity: COMPLEXITY_MUTATION,
+        complexity: Complexity.MUTATION,
       },
     }),
   },
