@@ -155,7 +155,6 @@ export class SqlExpr<L = any, O extends SqlOperator = SqlOperator, R = any> impl
     } else if (this._operator === SqlOperator.ISNULL || this._operator === SqlOperator.ISNOTNULL) {
     // eslint-disable-next-line no-empty
     } else if ((this._operator | SqlOperator.CUSTOM) === SqlOperator.CUSTOM) {
-      console.log("OPERATOR", this._operator)
       if (typeof this._right === "function") {
         params = [...params, ...(this._right as unknown as (() => any[]))()]
       } else {

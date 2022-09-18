@@ -9,34 +9,53 @@ import { triviaQuestionResolver } from "./trivia/question.js"
 export type SchemaContext = {
   http: ParameterizedContext<DefaultState, DefaultContext & Router.RouterParamContext<DefaultState, DefaultContext>, unknown>
   db: DatabaseRepository
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: symbol]: any
+  cache: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: symbol]: any
+  }
 }
 
 export type SchemaFields = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  query: Record<string, GraphQLFieldConfig<{}, SchemaContext, any>>
+  query?: Record<string, GraphQLFieldConfig<{}, SchemaContext, any>>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mutation: Record<string, GraphQLFieldConfig<{}, SchemaContext, any>>
+  mutation?: Record<string, GraphQLFieldConfig<{}, SchemaContext, any>>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  subscription?: Record<string, GraphQLFieldConfig<{}, SchemaContext, any>>
 }
 
-const schema = new GraphQLSchema({
-  query: new GraphQLObjectType({
-    name: "Query",
-    fields: {
-      ...userResolver.query,
-      ...triviaCategoryResolver.query,
-      ...triviaQuestionResolver.query,
-    },
-  }),
-  mutation: new GraphQLObjectType({
-    name: "Mutation",
-    fields: {
-      ...userResolver.mutation,
-      ...triviaCategoryResolver.mutation,
-      ...triviaQuestionResolver.mutation,
-    },
-  }),
-})
+const buildSchema = (resolvers: SchemaFields[]) => {
+  const getFieldsAsArray = (key: keyof SchemaFields) =>
+    resolvers
+      .filter(r => !!r[key])
+      .flatMap(r => Object.entries(r[key]!))
+
+  const queryFields = getFieldsAsArray("query")
+  const mutationFields = getFieldsAsArray("mutation")
+  const subscriptionFields = getFieldsAsArray("subscription")
+
+  const schema = new GraphQLSchema({
+    query: queryFields.length ? new GraphQLObjectType({
+      name: "Query",
+      fields: Object.fromEntries(queryFields),
+    }) : undefined,
+    mutation: mutationFields.length ? new GraphQLObjectType({
+      name: "Mutation",
+      fields: Object.fromEntries(mutationFields),
+    }) : undefined,
+    subscription: subscriptionFields.length ? new GraphQLObjectType({
+      name: "Subscription",
+      fields: Object.fromEntries(subscriptionFields),
+    }) : undefined,
+  })
+
+  return schema
+}
+
+const schema = buildSchema([
+  userResolver,
+  triviaCategoryResolver,
+  triviaQuestionResolver,
+])
 
 export default schema

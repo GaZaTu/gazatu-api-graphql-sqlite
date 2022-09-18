@@ -4,7 +4,6 @@ import { mkdir, readdir, readFile } from "node:fs/promises"
 import sqlite3 from "sqlite3"
 import moduleDir from "../lib/moduleDir.js"
 import { SQLite3Repository } from "../lib/querybuilder-sqlite.js"
-import { DatabaseRepository } from "../lib/querybuilder.js"
 import { createCreateFTSSyncTriggersScript } from "../lib/sqlite-createftssynctriggers.js"
 import { createCreateISOTimestampTriggersScript } from "../lib/sqlite-createisotimestamptriggers.js"
 
@@ -191,80 +190,37 @@ const open = async (options = { trace: true }) => {
   })
 }
 
-class DatabaseApi {
-  private _repository: DatabaseRepository
-
-  constructor(
-    private _database?: sqlite3.Database,
-    private _options?: {
-      _beforeExec?: (database: sqlite3.Database) => void,
-      _afterEdit?: (database: sqlite3.Database) => void,
-    },
-  ) {
-    const exec = async (query: string, values: any[]) => {
-      if (!this._database) {
-        return []
-      }
-
-      this._options?._beforeExec?.(this._database)
-
-      // try {
-        const rows = await all(this._database, query, values)
-        if (!rows) {
-          return []
-        }
-
-        return rows
-      // } catch (error) {
-      //   console.error(query, values)
-      //   throw error
-      // }
-    }
-
-    const execUpdate = (query: string, values: any[]) => {
-      const rows = exec(query, values)
-      if (this._repository.inTransaction) {
-        this._repository.onTransactionCommit = () => {
-          if (this._database) {
-            this._options?._afterEdit?.(this._database)
-          }
-        }
-      } else {
-        if (this._database) {
-          this._options?._afterEdit?.(this._database)
-        }
-      }
-      return rows
-    }
-
-    // const execRaw = (query: string, values: any[]) => {
-    //   try {
-    //     return this._database?.exec(query, values)
-    //   } catch (error) {
-    //     console.log(query, values)
-    //     console.error(error)
-    //     return undefined
-    //   }
-    // }
-
-    this._repository = new SQLite3Repository(exec, execUpdate)
-  }
-
-  get repository() {
-    return this._repository
-  }
-
-  get database() {
-    return this._database
-  }
+const connection = {
+  db: undefined as Awaited<ReturnType<typeof open>> | undefined,
+  dbApi: undefined as SQLite3Repository | undefined,
+  refs: 0,
 }
 
 const connectDatabase = async (options = { trace: true }) => {
-  const databaseApi = new DatabaseApi(await open(options))
+  if (!connection.db || !connection.dbApi) {
+    connection.db = await open(options)
+    connection.dbApi = new SQLite3Repository((...a) => all(connection.db!, ...a))
+  }
+
+  connection.refs += 1
+
+  const closeConnection = connection.db.close.bind(connection.db)
+  const close = async () => {
+    connection.refs -= 1
+
+    if (connection.refs === 0) {
+      await closeConnection()
+
+      connection.db = undefined
+      connection.dbApi = undefined
+    }
+  }
+
+  Object.assign(connection.db, { close })
 
   return [
-    databaseApi.database!,
-    databaseApi.repository,
+    connection.db!,
+    connection.dbApi!,
   ] as const
 }
 

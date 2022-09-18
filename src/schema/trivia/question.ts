@@ -1,25 +1,29 @@
-import { array, boolean, Infer, nullable, object, optional, string } from "superstruct"
+import { array, boolean, Infer, nullable, object, optional, size, string } from "superstruct"
+import { ulid } from "ulid"
 import gqlResolver, { gqlArray, gqlBoolean, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
 import { Complexity } from "../../lib/graphql-complexity.js"
 import { ASSIGN, sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
+import assertAuth from "../assertAuth.js"
+import assertInput from "../assertInput.js"
 import getN2MDataLoaderFromContext from "../getN2MDataLoaderFromContext.js"
 import { findManyPaginated, gqlPagination, gqlPaginationArgs } from "../pagination.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
 import { applySearchToQuery, applySortToQuery, gqlSearchArgs, gqlSortArgs } from "../searching.js"
 import { TriviaCategoryGraphQL, TriviaCategorySchema, TriviaCategorySQL } from "./category.js"
+import { triviaSSEOTPSet } from "./sse.js"
 
 const triviaQuestionCategoriesDataLoader = Symbol()
 
 export const TriviaQuestionSchema = object({
   id: optional(nullable(string())),
-  categories: array(TriviaCategorySchema),
-  question: string(),
-  answer: string(),
-  hint1: optional(nullable(string())),
-  hint2: optional(nullable(string())),
-  submitter: optional(nullable(string())),
+  categories: size(array(TriviaCategorySchema), 1, 5),
+  question: size(string(), 1, 256),
+  answer: size(string(), 1, 64),
+  hint1: optional(nullable(size(string(), 1, 256))),
+  hint2: optional(nullable(size(string(), 1, 256))),
+  submitter: optional(nullable(size(string(), 1, 64))),
   verified: optional(nullable(boolean())),
   disabled: optional(nullable(boolean())),
   createdAt: optional(nullable(string())),
@@ -90,8 +94,8 @@ export const triviaQuestionResolver: SchemaFields = {
           type: gqlString(),
         },
       },
-      resolve: async (self, { id }, { db }) => {
-        const result = await db.of(TriviaQuestionSQL)
+      resolve: async (self, { id }, ctx) => {
+        const result = await ctx.db.of(TriviaQuestionSQL)
           .findOneById(id)
         return result
       },
@@ -114,9 +118,9 @@ export const triviaQuestionResolver: SchemaFields = {
           defaultValue: false,
         },
       },
-      resolve: async (self, args, { db }) => {
+      resolve: async (self, args, ctx) => {
         const result = await findManyPaginated(TriviaQuestionSQL, args, () => {
-          const query = db
+          const query = ctx.db
             .select(TriviaQuestionSQL)
             .from(TriviaQuestionSQL)
             .where((typeof args.verified === "boolean") && sql`${TriviaQuestionSQL.schema.verified} = ${args.verified}`)
@@ -143,27 +147,33 @@ export const triviaQuestionResolver: SchemaFields = {
           type: gqlType(TriviaQuestionGraphQLInput),
         },
       },
-      resolve: async (self, { input: _input }, { db }) => {
+      resolve: async (self, { input: _input }, ctx) => {
         const {
           categories,
           ...input
         } = _input
 
-        const [result] = await db.of(TriviaQuestionSQL)
+        if (input.id) {
+          await assertAuth(ctx, ["trivia/admin"])
+        }
+
+        assertInput(TriviaQuestionSchema, input)
+
+        const [result] = await ctx.db.of(TriviaQuestionSQL)
           .save(input)
 
-        await db.of(N2MTriviaQuestionTriviaCategorySQL)
+        await ctx.db.of(N2MTriviaQuestionTriviaCategorySQL)
           .removeMany(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.questionId} = ${result.id}`)
 
         for (const category of categories) {
-          await db.of(N2MTriviaQuestionTriviaCategorySQL)
+          await ctx.db.of(N2MTriviaQuestionTriviaCategorySQL)
             .save({
               questionId: result.id!,
               categoryId: category.id!,
             })
         }
 
-        await db.of(TriviaQuestionSQL)
+        await ctx.db.of(TriviaQuestionSQL)
           .save(result)
 
         return result
@@ -179,8 +189,10 @@ export const triviaQuestionResolver: SchemaFields = {
           type: gqlArray(gqlString()),
         },
       },
-      resolve: async (self, { ids }, { db }) => {
-        await db.of(TriviaQuestionSQL)
+      resolve: async (self, { ids }, ctx) => {
+        await assertAuth(ctx, ["trivia/admin"])
+
+        await ctx.db.of(TriviaQuestionSQL)
           .updateManyById(ASSIGN(TriviaQuestionSQL.schema.verified, true), ids)
       },
     }),
@@ -191,9 +203,26 @@ export const triviaQuestionResolver: SchemaFields = {
           type: gqlArray(gqlString()),
         },
       },
-      resolve: async (self, { ids }, { db }) => {
-        await db.of(TriviaQuestionSQL)
+      resolve: async (self, { ids }, ctx) => {
+        await assertAuth(ctx, ["trivia/admin"])
+
+        await ctx.db.of(TriviaQuestionSQL)
           .updateManyById(ASSIGN(TriviaQuestionSQL.schema.disabled, true), ids)
+      },
+    }),
+  },
+  subscription: {
+    triviaSSE: gqlResolver({
+      type: gqlString(),
+      resolve: async (self, args, ctx) => {
+        await assertAuth(ctx, ["trivia/admin"])
+
+        const otp = ulid()
+
+        triviaSSEOTPSet.add(otp)
+        setTimeout(() => triviaSSEOTPSet.delete(otp), 10000)
+
+        return otp
       },
     }),
   },

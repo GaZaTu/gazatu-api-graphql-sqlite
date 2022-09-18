@@ -5,10 +5,11 @@ import http from "http"
 import https from "https"
 import Koa from "koa"
 import body from "koa-body"
-import logger from "koa-logger"
 import json from "koa-json"
 import jsonError from "koa-json-error"
+import logger from "koa-logger"
 import { graphqlRouter } from "./schema/handleGraphQLRequest.js"
+import { triviaSSERouter } from "./schema/trivia/sse.js"
 
 const getHost = () => {
   if (!config.has("host")) {
@@ -109,7 +110,7 @@ export const createHttpServer = (callback: (req: http.IncomingMessage, res: http
       const port = getPort()
 
       server.listen(port, host, () => {
-        console.log(`listening on ${host}:${port}`)
+        console.log(`listening on http://${host}:${port}`)
 
         const close = () => {
           console.log(`close ${host}:${port}`)
@@ -129,6 +130,7 @@ export const createHttpServer = (callback: (req: http.IncomingMessage, res: http
 export const listen = async () => {
   const middlewares = [
     graphqlRouter.middleware(),
+    triviaSSERouter.middleware(),
   ]
 
   const [, callback] = createKoa(middlewares)

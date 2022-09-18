@@ -43,7 +43,7 @@ export const UserSchema = object({
   updatedAt: optional(nullable(string())),
 })
 
-const resolveUserRolesForUser: GraphQLFieldResolver<User, SchemaContext, {}, Promise<UserRole[]>> = async (self, args, ctx) => {
+export const resolveUserRolesForUser = async (self: User, ctx: Pick<SchemaContext, "db" | "cache">) => {
   const dataloader = getN2MDataLoaderFromContext(ctx, userUserRolesDataLoader, UserRoleSQL, N2MUserUserRoleSQL, "userId", "userRoleId")
 
   const result = await dataloader.load(self.id!)
@@ -59,7 +59,9 @@ export const [
     password: { type: gqlUnset() },
     roles: gqlResolver({
       type: gqlArray(gqlType(UserRoleGraphQL)),
-      resolve: resolveUserRolesForUser,
+      resolve: (self, args, ctx) => {
+        return resolveUserRolesForUser(self, ctx)
+      },
     }),
   },
 })
@@ -104,8 +106,8 @@ interface AuthAttempt {
 
 const recentAuthAttempts = new Map<string, AuthAttempt>()
 
-const authenticate: GraphQLFieldResolver<{}, SchemaContext, { username: string, password: string }, Promise<Auth>> = async (self, args, ctx, info) => {
-  const { db, http } = ctx
+const authenticate: GraphQLFieldResolver<{}, SchemaContext, { username: string, password: string }, Promise<Auth>> = async (self, args, ctx) => {
+  const { db, http, cache } = ctx
 
   const recentAuthAttempt = recentAuthAttempts.get(http.ip)
 
@@ -124,7 +126,7 @@ const authenticate: GraphQLFieldResolver<{}, SchemaContext, { username: string, 
     }
 
     if (recentAuthAttempt.timestamp > (Date.now() - waitMs)) {
-      throw http.throw(new Error("Too many failed authentication attempts"), 429)
+      throw http.throw(429, new Error("Too many failed authentication attempts"))
     }
 
     recentAuthAttempt.count += 1
@@ -143,11 +145,11 @@ const authenticate: GraphQLFieldResolver<{}, SchemaContext, { username: string, 
       }
 
       Object.assign(user, {
-        roles: await resolveUserRolesForUser(user, {}, ctx, info),
+        roles: await resolveUserRolesForUser(user, { db, cache }),
       })
 
       return {
-        token: await signJwt({ id: user.id }),
+        token: await signJwt({ userId: user.id }),
         user,
       }
     }
@@ -160,7 +162,7 @@ const authenticate: GraphQLFieldResolver<{}, SchemaContext, { username: string, 
     })
   }
 
-  throw http.throw(new Error("username and password do not match"), 400)
+  throw http.throw(400, new Error("username and password do not match"))
 }
 
 const getDefaultUserRoleMapping = () => {

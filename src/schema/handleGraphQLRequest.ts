@@ -12,7 +12,7 @@ const GraphQLRequest = object({
   operationName: optional(string()),
 })
 
-export const executeGraphQL = async (request: Infer<typeof GraphQLRequest> & { context: SchemaContext }) => {
+export const executeGraphQL = async (request: Infer<typeof GraphQLRequest> & { context: Omit<SchemaContext, "cache"> }) => {
   const {
     query,
     variables,
@@ -44,12 +44,13 @@ export const executeGraphQL = async (request: Infer<typeof GraphQLRequest> & { c
     operationName,
     contextValue: {
       ...context,
+      cache: {},
     },
   })
 }
 
-const handleGraphQLRequest = async (request: Infer<typeof GraphQLRequest> & { context: Omit<SchemaContext, "db"> }) => {
-  const [db, dbApi] = await connectDatabase()
+const handleGraphQLRequest = async (request: Infer<typeof GraphQLRequest> & { context: Omit<SchemaContext, "cache" | "db"> }) => {
+  const [db, dbApi] = await connectDatabase({ trace: false })
 
   try {
     return await dbApi.transaction(async () => {

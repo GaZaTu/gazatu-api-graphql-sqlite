@@ -3,11 +3,11 @@ import { sql, SQLEntity } from "../lib/querybuilder.js"
 import { SchemaContext } from "./schema.js"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getN2MDataLoaderFromContext = <N2M, S extends { id?: any }>(ctx: SchemaContext, symbol: symbol, childTable: SQLEntity<S>, n2mTable: SQLEntity<N2M>, parentId: keyof N2M, childId: keyof N2M) => {
-  let dataloader = ctx[symbol] as DataLoader<string, S[]> | undefined
+const getN2MDataLoaderFromContext = <N2M, S extends { id?: any }>({ cache, db }: Pick<SchemaContext, "cache" | "db">, symbol: symbol, childTable: SQLEntity<S>, n2mTable: SQLEntity<N2M>, parentId: keyof N2M, childId: keyof N2M) => {
+  let dataloader = cache[symbol] as DataLoader<string, S[]> | undefined
   if (!dataloader) {
     dataloader = new DataLoader(async ids => {
-      const n2m = await ctx.db
+      const n2m = await db
         .select(childTable)
         .select([n2mTable.schema[parentId]])
         .from(n2mTable)
@@ -21,7 +21,7 @@ const getN2MDataLoaderFromContext = <N2M, S extends { id?: any }>(ctx: SchemaCon
           return n2m.filter(s => (s as any)[parentId] === id)
         })
     }, { maxBatchSize: 100 })
-    ctx[symbol] = dataloader
+    cache[symbol] = dataloader
   }
 
   return dataloader
