@@ -38,7 +38,7 @@ triviaSSERouter.get("/trivia/sse", async ctx => {
 
     stream.on("close", close)
   } catch (error) {
-    close()
+    db.close()
     throw error
   }
 })
