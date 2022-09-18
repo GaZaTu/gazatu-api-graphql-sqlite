@@ -1,10 +1,12 @@
-export const createCreateFTSSyncTriggersScript = (srcTable: string, ftsTable: string, fields: string[]) => {
+export const createCreateFTSSyncTriggersScript = (srcTable: string, ftsTable: string, ftsTableType: string | undefined, fields: string[]) => {
+  const stateful = !["external", "contentless"].includes(ftsTableType ?? "")
+
   let fieldsStrRaw = "rowid"
   let fieldsStrSrc = "SRC.rowid"
   let fieldsStrNew = "NEW.rowid"
   let fieldsStrOld = "OLD.rowid"
 
-  const values_clause = (field: string, table: string) => {
+  const valuesClause = (field: string, table: string) => {
     if (field.startsWith("SELECT")) {
       return `(${field.replace(/\$SRC/g, table)})`
     } else {
@@ -15,20 +17,24 @@ export const createCreateFTSSyncTriggersScript = (srcTable: string, ftsTable: st
   for (const field of fields) {
     fieldsStrRaw += `, "${field}"`
 
-    fieldsStrSrc += `, ${values_clause(field, "SRC")}`
+    fieldsStrSrc += `, ${valuesClause(field, "SRC")}`
 
-    fieldsStrNew += `, ${values_clause(field, "NEW")}`
+    fieldsStrNew += `, ${valuesClause(field, "NEW")}`
 
-    fieldsStrOld += `, ${values_clause(field, "OLD")}`
+    fieldsStrOld += `, ${valuesClause(field, "OLD")}`
   }
 
   const script = `
+${stateful ? `
+DELETE FROM "${ftsTable}";
+` : `
 INSERT INTO "${ftsTable}" (
   "${ftsTable}"
 )
 VALUES (
   'delete-all'
 );
+`}
 
 INSERT INTO "${ftsTable}" (
   ${fieldsStrRaw}
@@ -50,6 +56,10 @@ END;
 CREATE TRIGGER "trg_${srcTable}_after_update_sync_FTS"
 AFTER UPDATE ON "${srcTable}"
 BEGIN
+  ${stateful ? `
+  DELETE FROM "${ftsTable}"
+  WHERE rowid = OLD.rowid;
+  ` : `
   INSERT INTO "${ftsTable}" (
     "${ftsTable}",
     ${fieldsStrRaw}
@@ -57,6 +67,7 @@ BEGIN
     'delete',
     ${fieldsStrOld}
   );
+  `}
 
   INSERT INTO "${ftsTable}" (
     ${fieldsStrRaw}
@@ -68,6 +79,10 @@ END;
 CREATE TRIGGER "trg_${srcTable}_after_delete_sync_FTS"
 AFTER DELETE ON "${srcTable}"
 BEGIN
+  ${stateful ? `
+  DELETE FROM "${ftsTable}"
+  WHERE rowid = OLD.rowid;
+  ` : `
   INSERT INTO "${ftsTable}" (
     "${ftsTable}",
     ${fieldsStrRaw}
@@ -75,6 +90,7 @@ BEGIN
     'delete',
     ${fieldsStrOld}
   );
+  `}
 END;
   `
 

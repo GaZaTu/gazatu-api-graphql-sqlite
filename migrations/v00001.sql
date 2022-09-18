@@ -137,8 +137,7 @@ CREATE VIRTUAL TABLE "TriviaQuestionFTS" USING fts5 (
   "submitter",
   "SELECT group_concat(cat.name) FROM N2M_TriviaQuestion_TriviaCategory n2m JOIN TriviaCategory cat ON cat.id = n2m.categoryId WHERE n2m.questionId = $SRC.id",
   prefix = '3 4 5',
-  tokenize = 'porter unicode61',
-  content = 'TriviaQuestion'
+  tokenize = 'porter unicode61'
 );
 INSERT INTO "TriviaQuestionFTS" (
   "TriviaQuestionFTS",

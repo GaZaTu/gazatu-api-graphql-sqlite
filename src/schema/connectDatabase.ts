@@ -63,11 +63,11 @@ const setDatabaseVersion = async (database?: sqlite3.Database, version = 0) => {
 const expandMacros = (script: string) => {
   const regex = /^!!(\w+)\(([^)]*)\);$/gm
   const macros = {
-    "CREATE_FTS_SYNC_TRIGGERS": async (database: sqlite3.Database, [srcTable, ftsTable]: string[]) => {
+    "CREATE_FTS_SYNC_TRIGGERS": async (database: sqlite3.Database, [srcTable, ftsTable, ftsTableType]: string[]) => {
       const tableInfo = await all(database, `PRAGMA table_info('${ftsTable}')`)
       const fields = tableInfo.map(f => f.name)
 
-      const script = createCreateFTSSyncTriggersScript(srcTable, ftsTable, fields)
+      const script = createCreateFTSSyncTriggersScript(srcTable, ftsTable, ftsTableType, fields)
       await exec(database, script)
     },
     "CREATE_ISO_TIMESTAMP_TRIGGERS": async (database: sqlite3.Database, [table, column]: string[]) => {

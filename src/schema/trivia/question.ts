@@ -1,6 +1,7 @@
 import { array, boolean, Infer, nullable, object, optional, string } from "superstruct"
 import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType } from "../../lib/gqlResolver.js"
 import { Complexity } from "../../lib/graphql-complexity.js"
+import { sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import getN2MDataLoaderFromContext from "../getN2MDataLoaderFromContext.js"
@@ -133,6 +134,9 @@ export const triviaQuestionResolver: SchemaFields = {
         const [result] = await db.of(TriviaQuestionSQL)
           .save(input)
 
+        await db.of(N2MTriviaQuestionTriviaCategorySQL)
+          .removeMany(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.questionId} = ${result.id}`)
+
         for (const category of categories) {
           await db.of(N2MTriviaQuestionTriviaCategorySQL)
             .save({
@@ -140,6 +144,9 @@ export const triviaQuestionResolver: SchemaFields = {
               categoryId: category.id!,
             })
         }
+
+        await db.of(TriviaQuestionSQL)
+          .save(result)
 
         return result
       },

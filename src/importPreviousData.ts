@@ -77,6 +77,8 @@ void (async () => {
             hint1: question.hint1,
             hint2: question.hint2,
             submitter: question.submitter,
+            verified: true,
+            disabled: false,
           })
 
         await dbApi.of(N2MTriviaQuestionTriviaCategorySQL)
