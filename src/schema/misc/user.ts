@@ -2,7 +2,7 @@ import argon2 from "argon2"
 import config from "config"
 import { GraphQLFieldResolver } from "graphql"
 import { array, Infer, nullable, object, optional, string } from "superstruct"
-import gqlResolver, { gqlArray, gqlString, gqlType, gqlVoid } from "../../lib/gqlResolver.js"
+import gqlResolver, { gqlArray, gqlString, gqlType, gqlUnset } from "../../lib/gqlResolver.js"
 import { signJwt } from "../../lib/jwt.js"
 import { sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
@@ -56,13 +56,7 @@ export const [
 ] = superstructToGraphQL<SchemaContext>()(UserSchema, {
   name: "User",
   fields: {
-    password: gqlResolver({
-      type: gqlVoid(),
-      resolve: () => "you wish",
-      extensions: {
-        complexity: Number.MAX_SAFE_INTEGER,
-      },
-    }),
+    password: { type: gqlUnset() },
     roles: gqlResolver({
       type: gqlArray(gqlType(UserRoleGraphQL)),
       resolve: resolveUserRolesForUser,

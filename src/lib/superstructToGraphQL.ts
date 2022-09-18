@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLFieldConfig, GraphQLFieldConfigMap, GraphQLFloat, GraphQLID, GraphQLInputFieldConfig, GraphQLInputFieldConfigMap, GraphQLInputObjectType, GraphQLInputObjectTypeConfig, GraphQLInt, GraphQLInterfaceType, GraphQLInterfaceTypeConfig, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLObjectTypeConfig, GraphQLString, GraphQLType } from "graphql"
 import { Struct } from "superstruct"
+import { gqlUnset } from "./gqlResolver.js"
 import superstructIsRequired from "./superstructIsRequired.js"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,7 +74,14 @@ export function superstructToGraphQLType<T, S, C>(Type: (typeof GraphQLObjectTyp
         Object.assign(fields, config.fields)
       }
 
-      return fields
+      return Object.entries(fields)
+        .reduce((o, [fieldName, fieldConfig]) => {
+          if (fieldConfig.type !== gqlUnset()) {
+            o[fieldName] = fieldConfig as GraphQLInputFieldConfig
+          }
+
+          return o
+        }, {} as GraphQLInputFieldConfigMap)
     },
   })
 
@@ -85,7 +93,7 @@ export function superstructToGraphQLType<T, S, C>(Type: (typeof GraphQLObjectTyp
 }
 
 function superstructToGraphQL<C>() {
-  function superstructToGraphQL<T, S>(struct: Struct<T, S>, config: GraphQLObjectTypeConfig<T, C>) {
+  function superstructToGraphQL<T, S>(struct: Struct<T, S>, config: GraphQLObjectTypeConfig<T, C> & { inputFields?: GraphQLInputFieldConfigMap }) {
     const ObjectType = superstructToGraphQLType(GraphQLObjectType, struct, {
       ...config,
     })
@@ -100,6 +108,8 @@ function superstructToGraphQL<C>() {
         } else {
           Object.assign(fields, config.fields)
         }
+
+        Object.assign(fields, config.inputFields)
 
         return Object.entries(fields)
           .reduce((o, [fieldName, fieldConfig]) => {

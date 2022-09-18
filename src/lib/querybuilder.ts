@@ -155,6 +155,7 @@ export class SqlExpr<L = any, O extends SqlOperator = SqlOperator, R = any> impl
     } else if (this._operator === SqlOperator.ISNULL || this._operator === SqlOperator.ISNOTNULL) {
     // eslint-disable-next-line no-empty
     } else if ((this._operator | SqlOperator.CUSTOM) === SqlOperator.CUSTOM) {
+      console.log("OPERATOR", this._operator)
       if (typeof this._right === "function") {
         params = [...params, ...(this._right as unknown as (() => any[]))()]
       } else {
@@ -437,7 +438,7 @@ export class Selector implements HasQuery, HasValues {
     return new Selector.JoinHandler(this, clause)
   }
 
-  where(condition?: SqlExpr | (HasQuery & HasValues)) {
+  where(condition?: SqlExpr | (HasQuery & HasValues) | false) {
     if (!condition) {
       return this
     }
@@ -711,6 +712,7 @@ export class Updater implements HasQuery, HasValues {
       } else if (assignment instanceof SqlField) {
         assignment = [new SqlExpr(assignment, SqlOperator.ASSIGN, value)]
       } else if (assignment instanceof SqlExpr) {
+        // Object.assign(assignment, { _operator: SqlOperator.ASSIGN | SqlOperator.CUSTOM })
         assignment = [assignment]
       } else if (Object.getPrototypeOf(assignment).query) {
         assignment = [new SqlExpr(assignment.query, SqlOperator.CUSTOM, assignment.values)]
@@ -724,7 +726,7 @@ export class Updater implements HasQuery, HasValues {
     return this
   }
 
-  where(condition?: SqlExpr | (HasQuery & HasValues)) {
+  where(condition?: SqlExpr | (HasQuery & HasValues) | false) {
     if (!condition) {
       return this
     }
@@ -781,7 +783,7 @@ export class Deleter implements HasQuery, HasValues {
     return this
   }
 
-  where(condition?: SqlExpr | (HasQuery & HasValues)) {
+  where(condition?: SqlExpr | (HasQuery & HasValues) | false) {
     if (!condition) {
       return this
     }
@@ -1045,23 +1047,23 @@ export abstract class DatabaseRepository {
       }
     }
 
-    const enableMany = (field: SqlField, condition?: SqlExpr) => {
+    const updateMany = (expr: SqlExpr, condition?: SqlExpr) => {
       return this
         .update(table)
-        .set(ASSIGN(field, true))
+        .set(expr)
         .where(condition)
         .execute()
     }
 
-    const enableManyById = (field: SqlField, ids: (string | number)[]) => {
-      return enableMany(field, IN(sqlField`id`, ids))
+    const updateManyById = (expr: SqlExpr, ids: (string | number)[]) => {
+      return updateMany(expr, IN(sqlField`id`, ids))
     }
 
-    const enableOneById = (field: SqlField, id: string | number) => {
-      return enableMany(field, EQ(sqlField`id`, id))
+    const updateOneById = (expr: SqlExpr, id: string | number) => {
+      return updateMany(expr, EQ(sqlField`id`, id))
     }
 
-    const enable = async (field: SqlField, objects: Partial<T> | Partial<T>[] | undefined) => {
+    const update = async (expr: SqlExpr, objects: Partial<T> | Partial<T>[] | undefined) => {
       if (!objects) {
         return
       }
@@ -1075,7 +1077,7 @@ export abstract class DatabaseRepository {
           continue
         }
 
-        await enableOneById(field, object.id as any)
+        await updateOneById(expr, object.id as any)
       }
     }
 
@@ -1093,10 +1095,10 @@ export abstract class DatabaseRepository {
       removeManyById,
       removeOneById,
       remove,
-      enableMany,
-      enableManyById,
-      enableOneById,
-      enable,
+      updateMany,
+      updateManyById,
+      updateOneById,
+      update,
     }
   }
 
@@ -1163,10 +1165,10 @@ export class SQLEntity<T = any> extends SqlField {
     public entityName: string,
     public coerce: (r: Record<string, any>) => T,
     public schema: {
-      [P in keyof T]: SqlField<T[P]>
+      [P in keyof T]-?: SqlField<T[P]>
     },
     public as: (alias: string) => {
-      [P in keyof T]: SqlField<T[P]>
+      [P in keyof T]-?: SqlField<T[P]>
     },
   ) {
     super(entityName)

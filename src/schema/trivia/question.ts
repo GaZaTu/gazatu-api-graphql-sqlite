@@ -1,7 +1,7 @@
 import { array, boolean, Infer, nullable, object, optional, string } from "superstruct"
-import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType } from "../../lib/gqlResolver.js"
+import gqlResolver, { gqlArray, gqlBoolean, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
 import { Complexity } from "../../lib/graphql-complexity.js"
-import { sql } from "../../lib/querybuilder.js"
+import { ASSIGN, sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import getN2MDataLoaderFromContext from "../getN2MDataLoaderFromContext.js"
@@ -44,6 +44,12 @@ export const [
         complexity: Complexity.VIRTUAL_FIELD,
       },
     }),
+  },
+  inputFields: {
+    verified: { type: gqlUnset() },
+    disabled: { type: gqlUnset() },
+    createdAt: { type: gqlUnset() },
+    updatedAt: { type: gqlUnset() },
   },
 })
 
@@ -99,12 +105,22 @@ export const triviaQuestionResolver: SchemaFields = {
         ...gqlPaginationArgs,
         ...gqlSortArgs,
         ...gqlSearchArgs,
+        verified: {
+          type: gqlNullable(gqlBoolean()),
+          defaultValue: null,
+        },
+        disabled: {
+          type: gqlNullable(gqlBoolean()),
+          defaultValue: false,
+        },
       },
       resolve: async (self, args, { db }) => {
         const result = await findManyPaginated(TriviaQuestionSQL, args, () => {
           const query = db
             .select(TriviaQuestionSQL)
             .from(TriviaQuestionSQL)
+            .where((typeof args.verified === "boolean") && sql`${TriviaQuestionSQL.schema.verified} = ${args.verified}`)
+            .where((typeof args.disabled === "boolean") && sql`${TriviaQuestionSQL.schema.disabled} = ${args.disabled}`)
 
           applySortToQuery(query, TriviaQuestionSQL, args)
           applySearchToQuery(query, TriviaQuestionSQL, args, TriviaQuestionFTSSQL)
@@ -123,9 +139,11 @@ export const triviaQuestionResolver: SchemaFields = {
     saveTriviaQuestion: gqlResolver({
       type: gqlType(TriviaQuestionGraphQL),
       args: {
-        input: { type: gqlType(TriviaQuestionGraphQLInput) },
+        input: {
+          type: gqlType(TriviaQuestionGraphQLInput),
+        },
       },
-      resolve: async (_, { input: _input }, { db }) => {
+      resolve: async (self, { input: _input }, { db }) => {
         const {
           categories,
           ...input
@@ -152,6 +170,30 @@ export const triviaQuestionResolver: SchemaFields = {
       },
       extensions: {
         complexity: Complexity.MUTATION,
+      },
+    }),
+    verifyTriviaQuestions: gqlResolver({
+      type: gqlVoid(),
+      args: {
+        ids: {
+          type: gqlArray(gqlString()),
+        },
+      },
+      resolve: async (self, { ids }, { db }) => {
+        await db.of(TriviaQuestionSQL)
+          .updateManyById(ASSIGN(TriviaQuestionSQL.schema.verified, true), ids)
+      },
+    }),
+    disableTriviaQuestions: gqlResolver({
+      type: gqlVoid(),
+      args: {
+        ids: {
+          type: gqlArray(gqlString()),
+        },
+      },
+      resolve: async (self, { ids }, { db }) => {
+        await db.of(TriviaQuestionSQL)
+          .updateManyById(ASSIGN(TriviaQuestionSQL.schema.disabled, true), ids)
       },
     }),
   },

@@ -1,5 +1,5 @@
 import { boolean, Infer, nullable, object, optional, string } from "superstruct"
-import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType } from "../../lib/gqlResolver.js"
+import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType, gqlUnset } from "../../lib/gqlResolver.js"
 import { Complexity } from "../../lib/graphql-complexity.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
@@ -22,6 +22,12 @@ export const [
 ] = superstructToGraphQL<SchemaContext>()(TriviaCategorySchema, {
   name: "TriviaCategory",
   fields: {},
+  inputFields: {
+    verified: { type: gqlUnset() },
+    disabled: { type: gqlUnset() },
+    createdAt: { type: gqlUnset() },
+    updatedAt: { type: gqlUnset() },
+  },
 })
 
 export const [

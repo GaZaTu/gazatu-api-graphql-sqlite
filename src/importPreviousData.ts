@@ -74,9 +74,9 @@ void (async () => {
           .save({
             question: question.question,
             answer: question.answer,
-            hint1: question.hint1,
-            hint2: question.hint2,
-            submitter: question.submitter,
+            hint1: question.hint1 || null,
+            hint2: question.hint2 || null,
+            submitter: question.submitter || null,
             verified: true,
             disabled: false,
           })

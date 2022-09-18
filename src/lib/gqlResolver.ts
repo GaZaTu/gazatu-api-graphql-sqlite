@@ -52,8 +52,11 @@ export const gqlArray = <T extends GraphQLType>(ofType: T) =>
 export const gqlNullable = <T extends GraphQLNullableType>(nonnull: GraphQLNonNull<T>) =>
   nonnull.ofType
 
-const GraphQLVoid = new GraphQLScalarType({
+const GraphQLVoid = new GraphQLScalarType<void>({
   name: "Void",
+  parseLiteral: () => undefined,
+  parseValue: () => undefined,
+  serialize: () => undefined,
 })
 
 export const gqlVoid = () =>
@@ -65,3 +68,13 @@ const GraphQLUnknown = new GraphQLScalarType({
 
 export const gqlUnknown = () =>
   GraphQLUnknown
+
+const GraphQLUnset = new GraphQLScalarType({
+  name: "Unset",
+  parseLiteral: () => undefined,
+  parseValue: () => undefined,
+  serialize: () => undefined,
+})
+
+export const gqlUnset = () =>
+  GraphQLUnset

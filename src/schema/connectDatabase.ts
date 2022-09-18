@@ -208,12 +208,17 @@ class DatabaseApi {
 
       this._options?._beforeExec?.(this._database)
 
-      const rows = await all(this._database, query, values)
-      if (!rows) {
-        return []
-      }
+      // try {
+        const rows = await all(this._database, query, values)
+        if (!rows) {
+          return []
+        }
 
-      return rows
+        return rows
+      // } catch (error) {
+      //   console.error(query, values)
+      //   throw error
+      // }
     }
 
     const execUpdate = (query: string, values: any[]) => {

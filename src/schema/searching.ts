@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from "graphql"
 import { gqlNullable, gqlString, InferedGraphQLFieldConfigArgumentMap } from "../lib/gqlResolver.js"
-import { Selector, sql, SQLEntity } from "../lib/querybuilder.js"
+import { Selector, sql, SQLEntity, SqlField } from "../lib/querybuilder.js"
 import { sanitizeWebSearch } from "../lib/sqlite-sanitizewebsearch.js"
 
 const GraphQLSortDirection = new GraphQLEnumType({
@@ -29,7 +29,12 @@ export const applySortToQuery = (query: Selector, table: SQLEntity, args: GraphQ
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    query.orderBy(args.sortBy, args.sortDir as any)
+    if (!["ASC", "DESC"].includes(args.sortDir as any)) {
+      throw new Error(`Invalid SortDirection: ${args.sortDir}`)
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query.orderBy(new SqlField(args.sortBy, table.entityName), args.sortDir as any)
   }
 }
 

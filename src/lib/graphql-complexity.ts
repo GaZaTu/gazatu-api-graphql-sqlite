@@ -5,7 +5,7 @@ export const Complexity = {
   VIRTUAL_FIELD: 5,
   SIMPLE_QUERY: 10,
   MUTATION: 20,
-  MAX: 256,
+  MAX: 1000,
   PAGINATION: (({ args, childComplexity }) => {
     return childComplexity * Math.ceil((args.limit ?? 25) / 5)
   }) as ComplexityEstimator,
