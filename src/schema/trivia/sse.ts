@@ -20,14 +20,12 @@ triviaSSERouter.get("/trivia/sse", async ctx => {
     const stream = createKoaSSEStream(ctx)
 
     const listener = async (type: string, database: string, table: string, rowid: string) => {
-      if (!["TriviaQuestion", "TriviaCategory"].includes(table)) {
+      if (!table.startsWith("Trivia")) {
         return
       }
 
-      stream.write(`data: ${JSON.stringify({ type, table })}\n\n`)
+      stream.writeData({ type, table })
     }
-
-    stream.write("\n\n")
 
     db.on("change", listener)
 

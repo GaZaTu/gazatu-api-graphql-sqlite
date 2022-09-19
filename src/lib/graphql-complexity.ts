@@ -7,6 +7,6 @@ export const Complexity = {
   MUTATION: 20,
   MAX: 1000,
   PAGINATION: (({ args, childComplexity }) => {
-    return childComplexity * Math.ceil((args.limit ?? 25) / 5)
+    return childComplexity * Math.ceil((args?.args?.limit ?? args?.limit ?? 25) / 5)
   }) as ComplexityEstimator,
 }

@@ -31,6 +31,15 @@ function gqlResolver<T, C, A extends GraphQLFieldConfigArgumentMap, O extends Gr
 
 export default gqlResolver
 
+export const gqlArgsInput = <A extends GraphQLFieldConfigArgumentMap>(name: string, fields: A) => {
+  return {
+    args: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      type: new GraphQLInputObjectType({ name, fields }) as any as (GraphQLInputObjectType & { struct: Struct<InferedGraphQLFieldConfigArgumentMap<A>, any> }),
+    },
+  }
+}
+
 export const gqlType = <T extends GraphQLNullableType>(ofType: T) =>
   Object.assign(new GraphQLNonNull(ofType), { wrapper: "nonnull" as const })
 
@@ -71,9 +80,6 @@ export const gqlUnknown = () =>
 
 const GraphQLUnset = new GraphQLScalarType({
   name: "Unset",
-  parseLiteral: () => undefined,
-  parseValue: () => undefined,
-  serialize: () => undefined,
 })
 
 export const gqlUnset = () =>

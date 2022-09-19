@@ -1,4 +1,4 @@
-import { dirname } from "node:path"
+import { dirname, resolve } from "node:path"
 
 const moduleDir = (importMetaUrl: string) => {
   let __dirname = dirname(new URL(importMetaUrl).pathname)
@@ -9,3 +9,7 @@ const moduleDir = (importMetaUrl: string) => {
 }
 
 export default moduleDir
+
+const __dirname = moduleDir(import.meta.url)
+
+export const projectDir = resolve(`${__dirname}/../..`)

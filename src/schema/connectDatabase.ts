@@ -2,12 +2,11 @@
 
 import { mkdir, readdir, readFile } from "node:fs/promises"
 import sqlite3 from "sqlite3"
-import moduleDir from "../lib/moduleDir.js"
+import { projectDir } from "../lib/moduleDir.js"
 import { SQLite3Repository } from "../lib/querybuilder-sqlite.js"
 import { createCreateFTSSyncTriggersScript } from "../lib/sqlite-createftssynctriggers.js"
 import { createCreateISOTimestampTriggersScript } from "../lib/sqlite-createisotimestamptriggers.js"
-
-const __dirname = moduleDir(import.meta.url)
+import crypto from "node:crypto"
 
 const get = (database: sqlite3.Database, sql: string, params?: any[]) =>
   new Promise<Record<string, any>>((resolve, reject) => {
@@ -107,10 +106,11 @@ const expandMacros = (script: string) => {
 
 const databaseAfterOpen = async (database: sqlite3.Database) => {
   await exec(database, "PRAGMA journal_mode = wal")
+  await exec(database, "PRAGMA wal_autocheckpoint = 512")
   await exec(database, "PRAGMA synchronous = normal")
   await exec(database, "PRAGMA foreign_keys = ON")
 
-  const migrationsDir = `${__dirname}/../../migrations`
+  const migrationsDir = `${projectDir}/migrations`
 
   let version = await getDatabaseVersion(database)
   for (const scriptPath of await readdir(migrationsDir)) {
@@ -141,14 +141,14 @@ const databaseAfterOpen = async (database: sqlite3.Database) => {
 }
 
 const databaseBeforeClose = async (database: sqlite3.Database) => {
-  await exec(database, "PRAGMA analysis_limit = 400")
+  await exec(database, "PRAGMA analysis_limit = 1024")
   await exec(database, "PRAGMA optimize")
 }
 
 const open = async (options = { trace: true }) => {
-  await mkdir(`${__dirname}/../../data`, { recursive: true })
+  await mkdir(`${projectDir}/data`, { recursive: true })
 
-  const file = `${__dirname}/../../data/database.sqlite3`
+  const file = `${projectDir}/data/database.sqlite3`
   const mode = sqlite3.OPEN_CREATE | sqlite3.OPEN_READWRITE | sqlite3.OPEN_URI
 
   const database = new sqlite3.Database(file, mode)
@@ -165,7 +165,7 @@ const open = async (options = { trace: true }) => {
 
   if (options.trace && process.env.NODE_ENV !== "production") {
     database.on("trace", sql => {
-      if (sql.startsWith("PRAGMA")) {
+      if (sql.startsWith("PRAGMA") || sql.startsWith("--")) {
         return
       }
 
@@ -190,38 +190,89 @@ const open = async (options = { trace: true }) => {
   })
 }
 
+const createCachedAll = (db: sqlite3.Database) => {
+  const statementCache = new Map<string, sqlite3.Statement>()
+
+  const getStatement = (query: string) => {
+    const cacheKey = crypto.createHash("md5").update(query).digest("hex")
+
+    if (statementCache.has(cacheKey)) {
+      return statementCache.get(cacheKey)!
+    }
+
+    const result = db.prepare(query)
+
+    statementCache.set(cacheKey, result)
+    return result
+  }
+
+  const close = db.close.bind(db)
+  Object.assign(db, {
+    close: async () => {
+      await Promise.all(
+        [...statementCache.values()].map(stmt => {
+          return new Promise<void>((resolve, reject) => {
+            stmt.finalize(err => err ? reject(err) : resolve())
+          })
+        })
+      )
+
+      await close()
+    },
+  })
+
+  return (query: string, values: any[]) => {
+    return new Promise<Record<string, any>[]>((resolve, reject) => {
+      getStatement(query).all(values, (err, row) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(row)
+        }
+      })
+    })
+  }
+}
+
 const connection = {
-  db: undefined as Awaited<ReturnType<typeof open>> | undefined,
+  db: undefined as ReturnType<typeof open> | undefined,
   dbApi: undefined as SQLite3Repository | undefined,
   refs: 0,
+  timeoutId: undefined as any,
 }
 
 const connectDatabase = async (options = { trace: true }) => {
-  if (!connection.db || !connection.dbApi) {
-    connection.db = await open(options)
-    connection.dbApi = new SQLite3Repository((...a) => all(connection.db!, ...a))
+  if (!connection.db) {
+    connection.db = open(options)
   }
+
+  clearTimeout(connection.timeoutId)
 
   connection.refs += 1
 
-  const closeConnection = connection.db.close.bind(connection.db)
-  const close = async () => {
-    connection.refs -= 1
+  const db = await connection.db
 
-    if (connection.refs === 0) {
-      await closeConnection()
+  if (!connection.dbApi) {
+    connection.dbApi = new SQLite3Repository(createCachedAll(db))
 
-      connection.db = undefined
-      connection.dbApi = undefined
-    }
+    const close = db.close.bind(db)
+    Object.assign(db, {
+      close: async () => {
+        connection.refs -= 1
+
+        if (connection.refs === 0) {
+          connection.timeoutId = setTimeout(async () => {
+            await close()
+
+            connection.dbApi = undefined
+            connection.db = undefined
+          }, 1000 * 60 * 10) // 10 minutes
+        }
+      },
+    })
   }
 
-  Object.assign(connection.db, { close })
-
-  return [
-    connection.db!,
-    connection.dbApi!,
-  ] as const
+  return [db, connection.dbApi] as const
 }
 
 export default connectDatabase

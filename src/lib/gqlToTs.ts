@@ -52,25 +52,6 @@ const gqlFieldToTsProperty = (definition: gql.FieldDefinitionNode | gql.InputVal
   )
 }
 
-// const gqlFieldToTsMethod = (definition: gql.FieldDefinitionNode) => {
-//   return ts.factory.createMethodSignature(
-//     undefined,
-//     definition.name.value,
-//     [ts.factory.createParameterDeclaration(
-//       undefined,
-//       undefined,
-//       "args",
-//       undefined,
-//       ts.factory.createTypeLiteralNode(
-//         definition.arguments ?.map(gqlFieldToTsProperty),
-//       ),
-//       undefined,
-//     )],
-//     gqlTypeToTsType(definition.type),
-//     undefined,
-//   )
-// }
-
 const gqlFieldToTsPropertyOrMethod = (state: GraphQLToTypeScriptConverterState, definition: gql.FieldDefinitionNode | gql.InputValueDefinitionNode) => {
   if (state.mode === "full" && definition.kind === "FieldDefinition" && definition.arguments?.length) {
     // return gqlFieldToTsMethod(definition)
@@ -214,9 +195,6 @@ const gqlToTs = (gqlSchemaAsString: string, { mode }: { mode: "simple" | "full" 
   const convert = (gqlDefinition: gql.DefinitionNode) =>
     gqlDefinitionToTsDeclaration(converterState, gqlDefinition)
 
-  // const print = (tsNode: ts.Node) =>
-  //   printer.printNode(ts.EmitHint.Unspecified, tsNode, resultFile)
-
   const tsNodes = ts.factory.createNodeArray([
     ...gqlSchema.definitions.map(convert).filter(isTruthy),
     ...createGqlInterfacesAsTsUnionsFromState(converterState),
@@ -226,10 +204,3 @@ const gqlToTs = (gqlSchemaAsString: string, { mode }: { mode: "simple" | "full" 
 }
 
 export default gqlToTs
-
-// import { readFileSync, writeFileSync } from "fs"
-
-// const schemaGql = readFileSync(`${__dirname}/../../data/schema.gql`, { encoding: "utf-8" })
-// const schemaGqlTs = gqlToTs(schemaGql, { mode: "full" })
-
-// writeFileSync(`${__dirname}/../../data/schema.gql.client.ts`, schemaGqlTs, { encoding: "utf-8" })

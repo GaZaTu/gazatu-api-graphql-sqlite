@@ -1185,3 +1185,7 @@ export class SQLEntity<T = any> extends SqlField {
 export const isSQLEntity = (v: any): v is SQLEntity => {
   return v instanceof SQLEntity
 }
+
+export const filterSelection = (entity: SQLEntity, fields: string[]) => {
+  return fields.filter(f => entity.schema[f])
+}

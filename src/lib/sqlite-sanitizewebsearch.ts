@@ -7,74 +7,74 @@ export const sanitizeWebSearch = (search: string) => {
   let quotedEndIdx = 0
   let negateNext = false
 
-  for (let i = 0; i <= search.length; i++) {
-    // eslint-disable-next-line no-loop-func
-    const quote = () => {
-      if (!quotedAuto) {
-        if (quoted && (i - quotedStartIdx) === 1) {
-          quotedStartIdx += 1
-          return
-        }
-
-        if (!quoted && (i - quotedEndIdx) === 1 && i > 0) {
-          quotedEndIdx += 1
-          return
-        }
+  const quote = (i: number) => {
+    if (!quotedAuto) {
+      if (quoted && (i - quotedStartIdx) === 1) {
+        quotedStartIdx += 1
+        return
       }
 
-      quoted = !quoted
-
-      if (quoted) {
-        quotedStartIdx = i
-      } else {
-        quotedEndIdx = i
-      }
-
-      if (quoted && result !== "") {
-        if (negateNext) {
-          negateNext = false
-          result += " NOT "
-        } else {
-          result += " AND "
-        }
-      }
-
-      result += "\""
-
-      if (!quoted) {
-        result += "*"
-        quotedAuto = false
+      if (!quoted && (i - quotedEndIdx) === 1 && i > 0) {
+        quotedEndIdx += 1
+        return
       }
     }
 
+    quoted = !quoted
+
+    if (quoted) {
+      quotedStartIdx = i
+    } else {
+      quotedEndIdx = i
+    }
+
+    if (quoted && result !== "") {
+      if (negateNext) {
+        negateNext = false
+        result += " NOT "
+      } else {
+        result += " AND "
+      }
+    }
+
+    result += "\""
+
+    if (!quoted) {
+      result += "*"
+      quotedAuto = false
+    }
+  }
+
+  for (let i = 0; i <= search.length; i++) {
     if (i === search.length) {
       if (quoted) {
         quotedStartIdx = -1
-        quote()
+        quote(i)
       }
+
       continue
     }
 
     const chr = search[i]
 
     if (chr === "\"") {
-      quote()
+      quote(i)
       continue
     }
 
     if (quoted) {
       if (chr.trim() === "" && quotedAuto) {
-        quote()
+        quote(i)
         continue
       }
     } else {
       if (chr.trim() === "" || chr === "*" || chr === "+" || chr === "-") {
-        negateNext = (chr === "-") && !negateNext
+        negateNext = (chr === "-") && (result !== "")
         continue
       }
 
       quotedAuto = true
-      quote()
+      quote(i)
     }
 
     result += chr

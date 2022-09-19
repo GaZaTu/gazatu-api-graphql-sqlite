@@ -8,7 +8,7 @@ export const gqlPagination = <T extends GraphQLObjectType>(ofType: GraphQLNonNul
   let existing = knownPaginationTypes.get(ofType)
   if (!existing) {
     existing = new GraphQLObjectType({
-      name: `${ofType.ofType.name}Pagination`,
+      name: `${ofType.ofType.name}sConnection`,
       fields: {
         slice: {
           type: gqlArray(ofType),
@@ -45,17 +45,17 @@ export const gqlPaginationArgs = {
 export type GraphQLPaginationArgs = InferedGraphQLFieldConfigArgumentMap<typeof gqlPaginationArgs>
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const findManyPaginated = async <T extends Record<string, any>>(table: SQLEntity<T>, args: GraphQLPaginationArgs, selector: () => Selector) => {
+export const findManyPaginated = async <T extends Record<string, any>>(table: SQLEntity<T>, args: GraphQLPaginationArgs | null | undefined, selector: () => Selector) => {
   const count = await selector()
     .count() ?? 0
   const slice = await selector()
-    .offset(args.offset)
-    .limit(args.limit)
+    .offset(args?.offset)
+    .limit(args?.limit)
     .findMany(table)
 
   return {
     slice,
-    pageIndex: Math.floor(args.offset / args.limit),
-    pageCount: Math.ceil(count / args.limit),
+    pageIndex: Math.floor((args?.offset ?? 0) / (args?.limit ?? 1)),
+    pageCount: Math.ceil(count / (args?.limit ?? 1)),
   }
 }

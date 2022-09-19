@@ -3,6 +3,10 @@ import { sql } from "./lib/querybuilder.js"
 import connectDatabase from "./schema/connectDatabase.js"
 import { TriviaCategorySQL } from "./schema/trivia/category.js"
 import { N2MTriviaQuestionTriviaCategorySQL, TriviaQuestionSQL } from "./schema/trivia/question.js"
+import ProxyAgent from "proxy-agent"
+
+const HTTP_PROXY = process.env.HTTP_PROXY
+const httpProxyAgent = HTTP_PROXY ? new ProxyAgent(HTTP_PROXY) : undefined
 
 const categoryAliases: Record<string, string | undefined> = {
   "Black music": "Music",
@@ -42,7 +46,9 @@ type TriviaQuestion = {
 }
 
 void (async () => {
-  const response = await fetch("https://api.gazatu.xyz/trivia/questions?shuffled=false")
+  const response = await fetch("https://api.gazatu.xyz/trivia/questions?shuffled=false", {
+    agent: httpProxyAgent,
+  })
   const questions = await response.json() as TriviaQuestion[]
 
   const [db, dbApi] = await connectDatabase({ trace: false })

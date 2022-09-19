@@ -13,11 +13,16 @@ const createKoaSSEStream = (ctx: ParameterizedContext<DefaultState, DefaultConte
   })
 
   const stream = new PassThrough()
+  stream.write("\n\n")
 
   ctx.status = 200
   ctx.body = stream
 
-  return stream
+  return Object.assign(stream, {
+    writeData: (object: unknown) => {
+      stream.write(`data: ${JSON.stringify(object)}\n\n`)
+    },
+  })
 }
 
 export default createKoaSSEStream

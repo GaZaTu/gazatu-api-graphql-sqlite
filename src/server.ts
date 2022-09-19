@@ -8,7 +8,7 @@ import body from "koa-body"
 import json from "koa-json"
 import jsonError from "koa-json-error"
 import logger from "koa-logger"
-import { graphqlRouter } from "./schema/handleGraphQLRequest.js"
+import graphqlRouter from "./schema/graphqlRouter.js"
 import { triviaSSERouter } from "./schema/trivia/sse.js"
 
 const getHost = () => {

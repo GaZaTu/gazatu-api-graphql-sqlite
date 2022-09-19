@@ -1,6 +1,6 @@
 import { array, boolean, Infer, nullable, object, optional, size, string } from "superstruct"
 import { ulid } from "ulid"
-import gqlResolver, { gqlArray, gqlBoolean, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
+import gqlResolver, { gqlArgsInput, gqlArray, gqlBoolean, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
 import { Complexity } from "../../lib/graphql-complexity.js"
 import { ASSIGN, sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
@@ -103,9 +103,9 @@ export const triviaQuestionResolver: SchemaFields = {
         complexity: Complexity.SIMPLE_QUERY,
       },
     }),
-    triviaQuestions: gqlResolver({
+    triviaQuestionsConnection: gqlResolver({
       type: gqlPagination(gqlType(TriviaQuestionGraphQL)),
-      args: {
+      args: gqlArgsInput("TriviaQuestionsConnectionArgs", {
         ...gqlPaginationArgs,
         ...gqlSortArgs,
         ...gqlSearchArgs,
@@ -117,14 +117,14 @@ export const triviaQuestionResolver: SchemaFields = {
           type: gqlNullable(gqlBoolean()),
           defaultValue: false,
         },
-      },
-      resolve: async (self, args, ctx) => {
+      }),
+      resolve: async (self, { args }, ctx) => {
         const result = await findManyPaginated(TriviaQuestionSQL, args, () => {
           const query = ctx.db
             .select(TriviaQuestionSQL)
             .from(TriviaQuestionSQL)
-            .where((typeof args.verified === "boolean") && sql`${TriviaQuestionSQL.schema.verified} = ${args.verified}`)
-            .where((typeof args.disabled === "boolean") && sql`${TriviaQuestionSQL.schema.disabled} = ${args.disabled}`)
+            .where((typeof args?.verified === "boolean") && sql`${TriviaQuestionSQL.schema.verified} = ${args.verified}`)
+            .where((typeof args?.disabled === "boolean") && sql`${TriviaQuestionSQL.schema.disabled} = ${args.disabled}`)
 
           applySortToQuery(query, TriviaQuestionSQL, args)
           applySearchToQuery(query, TriviaQuestionSQL, args, TriviaQuestionFTSSQL)
@@ -157,7 +157,7 @@ export const triviaQuestionResolver: SchemaFields = {
           await assertAuth(ctx, ["trivia/admin"])
         }
 
-        assertInput(TriviaQuestionSchema, input)
+        assertInput(TriviaQuestionSchema, _input)
 
         const [result] = await ctx.db.of(TriviaQuestionSQL)
           .save(input)
