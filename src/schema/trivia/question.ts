@@ -117,6 +117,10 @@ export const triviaQuestionResolver: SchemaFields = {
           type: gqlNullable(gqlBoolean()),
           defaultValue: false,
         },
+        shuffled: {
+          type: gqlNullable(gqlBoolean()),
+          defaultValue: false,
+        },
         categoryId: {
           type: gqlNullable(gqlString()),
           defaultValue: null,
@@ -129,6 +133,7 @@ export const triviaQuestionResolver: SchemaFields = {
             .from(TriviaQuestionSQL)
             .where((typeof args?.verified === "boolean") && sql`${TriviaQuestionSQL.schema.verified} = ${args.verified}`)
             .where((typeof args?.disabled === "boolean") && sql`${TriviaQuestionSQL.schema.disabled} = ${args.disabled}`)
+            .orderBy(!!args?.shuffled && sql`RANDOM()`)
 
           if (args?.categoryId) {
             query.whereIn(TriviaQuestionSQL.schema.id, sub => sub

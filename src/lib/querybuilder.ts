@@ -493,7 +493,11 @@ export class Selector implements HasQuery, HasValues {
     return this
   }
 
-  orderBy(field: string | SqlField | SqlExpr, direction?: OrderByDirection, nulls?: OrderByNulls) {
+  orderBy(field: string | SqlField | SqlExpr | undefined | null | false, direction?: OrderByDirection, nulls?: OrderByNulls) {
+    if (!field) {
+      return this
+    }
+
     const clause: QueryBuilderOrderClause = {
       field: (typeof field === "string") ? new SqlField(field) : field,
       direction,

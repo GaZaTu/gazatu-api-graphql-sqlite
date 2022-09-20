@@ -71,9 +71,10 @@ triviaRouter.get("/questions", async ctx => {
     `,
     variables: {
       args: {
-        limit: shuffled ? null : limit,
+        limit,
         verified,
         disabled,
+        shuffled,
       },
     },
     context: {
@@ -83,7 +84,7 @@ triviaRouter.get("/questions", async ctx => {
     ignoreComplexity: true,
   })
 
-  let questions = (result.data?.triviaQuestionsConnection?.slice ?? [])
+  const questions = (result.data?.triviaQuestionsConnection?.slice ?? [])
     .filter(({ categories }) => {
       for (const category of categories) {
         if (exclude?.includes(category.name)) {
@@ -114,24 +115,6 @@ triviaRouter.get("/questions", async ctx => {
       categories: question.categories.map(c => c.name),
       category: question.categories[0]?.name,
     }))
-
-  if (shuffled) {
-    const shuffleInPlace = <T>(a: T[]): T[] => {
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-
-        void ([a[i], a[j]] = [a[j], a[i]])
-      }
-
-      return a
-    }
-
-    shuffleInPlace(questions)
-
-    if (limit) {
-      questions = questions.slice(0, limit)
-    }
-  }
 
   ctx.response.type = "application/json"
   ctx.response.body = questions
