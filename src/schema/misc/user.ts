@@ -8,6 +8,7 @@ import { sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import getN2MDataLoaderFromContext from "../getN2MDataLoaderFromContext.js"
+import { Complexity } from "../graphql-complexity.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
 
 export const UserRoleSchema = object({
@@ -174,7 +175,7 @@ const getDefaultUserRoleMapping = () => {
 }
 
 export const userResolver: SchemaFields = {
-  query: {
+  mutation: {
     authenticate: gqlResolver({
       type: gqlType(AuthGraphQL),
       args: {
@@ -186,9 +187,10 @@ export const userResolver: SchemaFields = {
         },
       },
       resolve: authenticate,
+      extensions: {
+        complexity: Complexity.MAX,
+      },
     }),
-  },
-  mutation: {
     registerUser: gqlResolver({
       type: gqlType(AuthGraphQL),
       args: {
@@ -228,6 +230,9 @@ export const userResolver: SchemaFields = {
 
         const result = await authenticate(self, args, ctx, info)
         return result
+      },
+      extensions: {
+        complexity: Complexity.MAX,
       },
     }),
   },

@@ -9,7 +9,7 @@ import json from "koa-json"
 import jsonError from "koa-json-error"
 import logger from "koa-logger"
 import graphqlRouter from "./schema/graphqlRouter.js"
-import { triviaSSERouter } from "./schema/trivia/sse.js"
+import triviaRouter from "./schema/trivia/triviaRouter.js"
 
 const getHost = () => {
   if (!config.has("host")) {
@@ -67,7 +67,7 @@ export const createKoa = (middlewares: Koa.Middleware<any, any>[]) => {
       type: (err as any).type,
       status: err.status,
       stack: (process.env.NODE_ENV !== "production") ? err.stack : undefined,
-    }, undefined, "  "),
+    }, undefined, (process.env.NODE_ENV !== "production") ? "  " : undefined),
   }))
 
   koa.use(body())
@@ -130,7 +130,7 @@ export const createHttpServer = (callback: (req: http.IncomingMessage, res: http
 export const listen = async () => {
   const middlewares = [
     graphqlRouter.middleware(),
-    triviaSSERouter.middleware(),
+    triviaRouter.middleware(),
   ]
 
   const [, callback] = createKoa(middlewares)

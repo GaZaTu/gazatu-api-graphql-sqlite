@@ -1,15 +1,15 @@
 import Router from "@koa/router"
-import { ExecutionResult, GraphQLError, parse, validate } from "graphql"
+import { ExecutionResult, GraphQLError, parse, specifiedRules, validate } from "graphql"
 import { compileQuery, isCompiledQuery } from "graphql-jit"
 import { fieldExtensionsEstimator, getComplexity, simpleEstimator } from "graphql-query-complexity"
 import { HttpError } from "koa"
 import crypto from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { any, Infer, nullable, object, optional, record, string } from "superstruct"
-import { Complexity } from "../lib/graphql-complexity.js"
 import { projectDir } from "../lib/moduleDir.js"
-import connectDatabase from "./connectDatabase.js"
+import { Complexity } from "./graphql-complexity.js"
 import schema, { SchemaContext } from "./schema.js"
+import useDatabaseApi from "./useDatabaseApi.js"
 
 const GraphQLRequestSchema = object({
   query: string(),
@@ -24,15 +24,18 @@ const complexityEstimators = [
   simpleEstimator({ defaultComplexity: Complexity.DEFAULT }),
 ]
 
-type CompiledQueryFunc = (root: unknown, context: unknown, variables: Record<string, unknown> | null | undefined) => Promise<ExecutionResult<unknown>> | ExecutionResult<unknown>
-const graphqlQueryCache = new Map<string, CompiledQueryFunc>()
+export const ignoreComplexity = Symbol()
 
-export const compileGraphQL = async (request: Omit<GraphQLRequest, "variables">) => {
+type CompiledQueryFunc<T> = (root: unknown, context: SchemaContext, variables: Record<string | symbol, unknown> | null | undefined) => Promise<ExecutionResult<T>> | ExecutionResult<T>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const graphqlQueryCache = new Map<string, CompiledQueryFunc<any>>()
+
+export const getCompiledGraphQLQuery = async <T>(request: Omit<GraphQLRequest, "variables">) => {
   const cacheKeySource = `|${JSON.stringify(request.query)}|${JSON.stringify(request.operationName ?? "")}|`
   const cacheKey = crypto.createHash("md5").update(cacheKeySource).digest("hex")
 
   if (graphqlQueryCache.has(cacheKey)) {
-    return graphqlQueryCache.get(cacheKey)!
+    return graphqlQueryCache.get(cacheKey)! as CompiledQueryFunc<T>
   }
 
   const {
@@ -44,7 +47,11 @@ export const compileGraphQL = async (request: Omit<GraphQLRequest, "variables">)
     maxTokens: Complexity.MAX,
   })
 
-  const assertComplexity = (variables: Parameters<CompiledQueryFunc>[2]) => {
+  const assertComplexity = (variables: Parameters<CompiledQueryFunc<T>>[2]) => {
+    if (variables?.[ignoreComplexity]) {
+      return
+    }
+
     const complexity = getComplexity({
       schema,
       estimators: complexityEstimators,
@@ -58,7 +65,7 @@ export const compileGraphQL = async (request: Omit<GraphQLRequest, "variables">)
     }
   }
 
-  const validationErrors = validate(schema, document)
+  const validationErrors = validate(schema, document, [...specifiedRules /** , depthLimit(8) */])
   if (validationErrors[0]) {
     throw validationErrors[0]
   }
@@ -75,11 +82,11 @@ export const compileGraphQL = async (request: Omit<GraphQLRequest, "variables">)
     }
   }
 
-  const result: CompiledQueryFunc = (root, context, variables) => {
+  const result: CompiledQueryFunc<T> = async (root, context, variables) => {
     assertComplexity(variables)
 
-    const result = compiledQuery.query(root, context, variables)
-    return result
+    const result = await compiledQuery.query(root, context, variables)
+    return result as ExecutionResult<T>
   }
 
   // const result: CompiledQueryFunc = (root, context, variables) => {
@@ -100,29 +107,23 @@ export const compileGraphQL = async (request: Omit<GraphQLRequest, "variables">)
   return result
 }
 
-export const executeGraphQL = async (request: GraphQLRequest & { context: Omit<SchemaContext, "cache"> }) => {
-  const execute = await compileGraphQL(request)
-  const result = await execute({}, { ...request.context, cache: {} }, request.variables)
+export const executeGraphQLInTransaction = async <T>(request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }, options?: { dbApi?: SchemaContext["db"], ignoreComplexity?: boolean }) => {
+  const execute = await getCompiledGraphQLQuery<T>(request)
+  const dbApi = options?.dbApi ?? await useDatabaseApi()
 
-  return result
-}
-
-export const executeGraphQLInTransaction = async (request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }) => {
-  const [db, dbApi] = await connectDatabase({ trace: false })
-
-  try {
-    return await dbApi.transaction(async () => {
-      return await executeGraphQL({
-        ...request,
-        context: {
-          ...request.context,
-          db: dbApi,
-        },
-      })
-    })
-  } finally {
-    await db.close()
+  const context = {
+    ...request.context,
+    db: dbApi,
+    cache: {},
   }
+
+  const variables = {
+    ...request.variables,
+    ...(options?.ignoreComplexity ? { [ignoreComplexity]: true } : {}),
+  }
+
+  const result = await dbApi.transaction(() => execute({}, context, variables))
+  return result
 }
 
 export const handleGraphQLRequest = async (ctx: SchemaContext["http"], requestObject: unknown) => {
@@ -176,7 +177,10 @@ export const handleGraphQLRequest = async (ctx: SchemaContext["http"], requestOb
   }
 
   ctx.response.type = `${accept}; charset=${charset}`
-  ctx.response.body = response
+  ctx.response.body = {
+    ...response,
+    errors: response.errors?.slice(0, 5),
+  }
 }
 
 /**

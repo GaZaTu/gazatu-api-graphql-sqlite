@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import crypto from "node:crypto"
 import { mkdir, readdir, readFile } from "node:fs/promises"
 import sqlite3 from "sqlite3"
 import { projectDir } from "../lib/moduleDir.js"
 import { SQLite3Repository } from "../lib/querybuilder-sqlite.js"
 import { createCreateFTSSyncTriggersScript } from "../lib/sqlite-createftssynctriggers.js"
 import { createCreateISOTimestampTriggersScript } from "../lib/sqlite-createisotimestamptriggers.js"
-import crypto from "node:crypto"
 
 const get = (database: sqlite3.Database, sql: string, params?: any[]) =>
   new Promise<Record<string, any>>((resolve, reject) => {
@@ -109,6 +109,7 @@ const databaseAfterOpen = async (database: sqlite3.Database) => {
   await exec(database, "PRAGMA wal_autocheckpoint = 512")
   await exec(database, "PRAGMA synchronous = normal")
   await exec(database, "PRAGMA foreign_keys = ON")
+  await exec(database, "PRAGMA trusted_schema = ON")
 
   const migrationsDir = `${projectDir}/migrations`
 
@@ -164,13 +165,13 @@ const open = async (options = { trace: true }) => {
   })
 
   if (options.trace && process.env.NODE_ENV !== "production") {
-    database.on("trace", sql => {
-      if (sql.startsWith("PRAGMA") || sql.startsWith("--")) {
-        return
-      }
+    // database.on("trace", sql => {
+    //   if (sql.startsWith("PRAGMA") || sql.startsWith("--")) {
+    //     return
+    //   }
 
-      console.log(`${sql};`)
-    })
+    //   console.log(`${sql};`)
+    // })
   }
 
   return Object.assign(database, {
@@ -234,45 +235,93 @@ const createCachedAll = (db: sqlite3.Database) => {
   }
 }
 
-const connection = {
-  db: undefined as ReturnType<typeof open> | undefined,
-  dbApi: undefined as SQLite3Repository | undefined,
-  refs: 0,
-  timeoutId: undefined as any,
+export type DatabaseConnection = {
+  db: Awaited<ReturnType<typeof open>>
+  dbApi: SQLite3Repository
+  timeoutId?: any
 }
 
-const connectDatabase = async (options = { trace: true }) => {
-  if (!connection.db) {
-    connection.db = open(options)
+export const databaseConnections = new Set<DatabaseConnection>()
+
+const databaseConnectionsAdd = databaseConnections.add.bind(databaseConnections)
+Object.assign(databaseConnections, {
+  add: (value: DatabaseConnection) => {
+    for (const hook of databaseUpdateHooks) {
+      value.db.on("change", hook)
+    }
+
+    return databaseConnectionsAdd(value)
+  },
+})
+
+const connectionsDelete = databaseConnections.delete.bind(databaseConnections)
+Object.assign(databaseConnections, {
+  delete: (value: DatabaseConnection) => {
+    void (async () => {
+      await exec(value.db, "PRAGMA wal_checkpoint(PASSIVE)")
+      await value.db.close()
+    })()
+
+    return connectionsDelete(value)
+  },
+  clear: () => {
+    for (const connection of databaseConnections) {
+      databaseConnections.delete(connection)
+    }
+  },
+})
+
+export type DatabaseUpdateHook = (type: string, database: string, table: string, rowid: number) => void
+export const databaseUpdateHooks = new Set<DatabaseUpdateHook>()
+
+const databaseUpdateHooksAdd = databaseUpdateHooks.add.bind(databaseUpdateHooks)
+Object.assign(databaseUpdateHooks, {
+  add: (value: DatabaseUpdateHook) => {
+    for (const { db } of databaseConnections) {
+      db.on("change", value)
+    }
+
+    return databaseUpdateHooksAdd(value)
+  },
+})
+
+const databaseUpdateHooksDelete = databaseUpdateHooks.delete.bind(databaseUpdateHooks)
+Object.assign(databaseUpdateHooks, {
+  delete: (value: DatabaseUpdateHook) => {
+    for (const { db } of databaseConnections) {
+      db.off("change", value)
+    }
+
+    return databaseUpdateHooksDelete(value)
+  },
+})
+
+const useDatabaseApi = async () => {
+  const refreshTimeout = (connection: DatabaseConnection) => {
+    clearTimeout(connection.timeoutId)
+    connection.timeoutId = setTimeout(() => databaseConnections.delete(connection), 1000 * 60 * 10) // 10 minutes
   }
 
-  clearTimeout(connection.timeoutId)
+  for (const connection of databaseConnections) {
+    if (!connection.dbApi.inTransaction) {
+      refreshTimeout(connection)
 
-  connection.refs += 1
-
-  const db = await connection.db
-
-  if (!connection.dbApi) {
-    connection.dbApi = new SQLite3Repository(createCachedAll(db))
-
-    const close = db.close.bind(db)
-    Object.assign(db, {
-      close: async () => {
-        connection.refs -= 1
-
-        if (connection.refs === 0) {
-          connection.timeoutId = setTimeout(async () => {
-            await close()
-
-            connection.dbApi = undefined
-            connection.db = undefined
-          }, 1000 * 60 * 10) // 10 minutes
-        }
-      },
-    })
+      return connection.dbApi
+    }
   }
 
-  return [db, connection.dbApi] as const
+  const db = await open()
+  const dbApi = new SQLite3Repository(createCachedAll(db))
+
+  const connection = { db, dbApi } as DatabaseConnection
+  refreshTimeout(connection)
+
+  databaseConnections.add(connection)
+  return connection.dbApi
 }
 
-export default connectDatabase
+export default useDatabaseApi
+
+// databaseUpdateHooks.add((type, database, table, rowid) => {
+//   console.log({ type, database, table, rowid })
+// })

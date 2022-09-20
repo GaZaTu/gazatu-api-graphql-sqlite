@@ -1,6 +1,6 @@
 import fetch from "node-fetch"
 import { sql } from "./lib/querybuilder.js"
-import connectDatabase from "./schema/connectDatabase.js"
+import useDatabaseApi, { databaseConnections } from "./schema/useDatabaseApi.js"
 import { TriviaCategorySQL } from "./schema/trivia/category.js"
 import { N2MTriviaQuestionTriviaCategorySQL, TriviaQuestionSQL } from "./schema/trivia/question.js"
 import ProxyAgent from "proxy-agent"
@@ -11,27 +11,27 @@ const httpProxyAgent = HTTP_PROXY ? new ProxyAgent(HTTP_PROXY) : undefined
 const categoryAliases: Record<string, string | undefined> = {
   "Black music": "Music",
   "Brazil": "History",
-  "RandomQuestions": "Generic",
-  "Canada": "Generic",
+  "RandomQuestions": "General Knowledge",
+  "Canada": "General Knowledge",
   "D DansGame TA": "Dota",
-  "DansGame": "Generic",
-  "Dicks": "Generic",
-  "Entertainment": "Generic",
+  "DansGame": "General Knowledge",
+  "Dicks": "General Knowledge",
+  "Entertainment": "General Knowledge",
   "Girls": "Biology",
-  "Google": "Generic",
+  "Google": "General Knowledge",
   "HS": "HearthStone",
-  "Homosexuals": "Generic",
+  "Homosexuals": "General Knowledge",
   "Location": "Memes",
   "L OMEGALUL L": "LeagueOfLegends",
-  "Michael Jackson": "Generic",
-  "Netflix": "Generic",
+  "Michael Jackson": "General Knowledge",
+  "Netflix": "General Knowledge",
   "Period": "Sex",
   "Pewdiepie": "YouTube",
   "QOTD": "Forsen",
   "Smart": "History",
   "Spongebob": "TV",
   "Travicity": "Forsen",
-  "Words": "Generic",
+  "Words": "General Knowledge",
   "memes": "Memes",
   "nymn": "Twitch",
 }
@@ -51,10 +51,10 @@ void (async () => {
   })
   const questions = await response.json() as TriviaQuestion[]
 
-  const [db, dbApi] = await connectDatabase({ trace: false })
+  const dbApi = await useDatabaseApi()
 
   try {
-    return await dbApi.transaction(async () => {
+    await dbApi.transaction(async () => {
       await dbApi.remove()
         .from(TriviaQuestionSQL)
       await dbApi.remove()
@@ -95,6 +95,8 @@ void (async () => {
       }
     })
   } finally {
-    await db.close()
+    databaseConnections.clear()
   }
+
+  return "done"
 })().then(console.log, console.error)

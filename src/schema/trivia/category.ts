@@ -1,6 +1,6 @@
 import { boolean, Infer, nullable, object, optional, size, string } from "superstruct"
 import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType, gqlUnset } from "../../lib/gqlResolver.js"
-import { Complexity } from "../../lib/graphql-complexity.js"
+import { Complexity } from "../graphql-complexity.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import assertAuth from "../assertAuth.js"
@@ -89,6 +89,7 @@ export const triviaCategoryResolver: SchemaFields = {
           .save(input)
         return result
       },
+      description: "requires role: trivia/admin",
       extensions: {
         complexity: Complexity.MUTATION,
       },

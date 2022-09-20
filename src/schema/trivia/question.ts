@@ -1,7 +1,7 @@
 import { array, boolean, Infer, nullable, object, optional, size, string } from "superstruct"
 import { ulid } from "ulid"
 import gqlResolver, { gqlArgsInput, gqlArray, gqlBoolean, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
-import { Complexity } from "../../lib/graphql-complexity.js"
+import { Complexity } from "../graphql-complexity.js"
 import { ASSIGN, sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
@@ -12,7 +12,7 @@ import { findManyPaginated, gqlPagination, gqlPaginationArgs } from "../paginati
 import type { SchemaContext, SchemaFields } from "../schema.js"
 import { applySearchToQuery, applySortToQuery, gqlSearchArgs, gqlSortArgs } from "../searching.js"
 import { TriviaCategoryGraphQL, TriviaCategorySchema, TriviaCategorySQL } from "./category.js"
-import { triviaSSEOTPSet } from "./sse.js"
+import { triviaSSEOTPSet } from "./triviaRouter.js"
 
 const triviaQuestionCategoriesDataLoader = Symbol()
 
@@ -117,6 +117,10 @@ export const triviaQuestionResolver: SchemaFields = {
           type: gqlNullable(gqlBoolean()),
           defaultValue: false,
         },
+        categoryId: {
+          type: gqlNullable(gqlString()),
+          defaultValue: null,
+        },
       }),
       resolve: async (self, { args }, ctx) => {
         const result = await findManyPaginated(TriviaQuestionSQL, args, () => {
@@ -125,6 +129,14 @@ export const triviaQuestionResolver: SchemaFields = {
             .from(TriviaQuestionSQL)
             .where((typeof args?.verified === "boolean") && sql`${TriviaQuestionSQL.schema.verified} = ${args.verified}`)
             .where((typeof args?.disabled === "boolean") && sql`${TriviaQuestionSQL.schema.disabled} = ${args.disabled}`)
+
+          if (args?.categoryId) {
+            query.whereIn(TriviaQuestionSQL.schema.id, sub => sub
+              .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
+              .from(N2MTriviaQuestionTriviaCategorySQL)
+              .where(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId} = ${args.categoryId}`)
+            )
+          }
 
           applySortToQuery(query, TriviaQuestionSQL, args)
           applySearchToQuery(query, TriviaQuestionSQL, args, TriviaQuestionFTSSQL)
@@ -148,16 +160,16 @@ export const triviaQuestionResolver: SchemaFields = {
         },
       },
       resolve: async (self, { input: _input }, ctx) => {
-        const {
-          categories,
-          ...input
-        } = _input
-
-        if (input.id) {
+        if (_input.id) {
           await assertAuth(ctx, ["trivia/admin"])
         }
 
         assertInput(TriviaQuestionSchema, _input)
+
+        const {
+          categories,
+          ...input
+        } = _input
 
         const [result] = await ctx.db.of(TriviaQuestionSQL)
           .save(input)
@@ -178,6 +190,7 @@ export const triviaQuestionResolver: SchemaFields = {
 
         return result
       },
+      description: "requires role: trivia/admin",
       extensions: {
         complexity: Complexity.MUTATION,
       },
@@ -195,6 +208,7 @@ export const triviaQuestionResolver: SchemaFields = {
         await ctx.db.of(TriviaQuestionSQL)
           .updateManyById(ASSIGN(TriviaQuestionSQL.schema.verified, true), ids)
       },
+      description: "requires role: trivia/admin",
     }),
     disableTriviaQuestions: gqlResolver({
       type: gqlVoid(),
@@ -209,6 +223,7 @@ export const triviaQuestionResolver: SchemaFields = {
         await ctx.db.of(TriviaQuestionSQL)
           .updateManyById(ASSIGN(TriviaQuestionSQL.schema.disabled, true), ids)
       },
+      description: "requires role: trivia/admin",
     }),
   },
   subscription: {
@@ -224,6 +239,7 @@ export const triviaQuestionResolver: SchemaFields = {
 
         return otp
       },
+      description: "requires role: trivia/admin",
     }),
   },
 }

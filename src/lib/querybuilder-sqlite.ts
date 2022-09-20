@@ -157,16 +157,16 @@ export class SQLite3Repository extends DatabaseRepository {
     return new Deleter(createDeleteScript, this._execUpdate)
   }
 
-  beginTransaction() {
-    this._execRaw("BEGIN TRANSACTION", [])
+  async beginTransaction() {
+    await this._execRaw("BEGIN TRANSACTION", [])
   }
 
-  commitTransaction() {
-    this._execRaw("COMMIT", [])
+  async commitTransaction() {
+    await this._execRaw("COMMIT", [])
   }
 
-  rollbackTransaction() {
-    this._execRaw("ROLLBACK", [])
+  async rollbackTransaction() {
+    await this._execRaw("ROLLBACK", [])
   }
 
   newId() {
@@ -175,5 +175,9 @@ export class SQLite3Repository extends DatabaseRepository {
 
   exec(query: string, values: any[]) {
     return this._exec(query, values)
+  }
+
+  execUpdate(query: string, values: any[]) {
+    return this._execUpdate(query, values)
   }
 }

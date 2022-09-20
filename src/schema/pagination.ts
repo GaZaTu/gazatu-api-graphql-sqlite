@@ -1,5 +1,5 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLType } from "graphql"
-import { gqlArray, gqlInteger, InferedGraphQLFieldConfigArgumentMap } from "../lib/gqlResolver.js"
+import { gqlArray, gqlInteger, gqlNullable, InferedGraphQLFieldConfigArgumentMap } from "../lib/gqlResolver.js"
 import { Selector, SQLEntity } from "../lib/querybuilder.js"
 
 const knownPaginationTypes = new Map<GraphQLType, GraphQLObjectType>()
@@ -33,11 +33,11 @@ export const gqlPagination = <T extends GraphQLObjectType>(ofType: GraphQLNonNul
 
 export const gqlPaginationArgs = {
   offset: {
-    type: gqlInteger(),
+    type: gqlNullable(gqlInteger()),
     defaultValue: 0,
   },
   limit: {
-    type: gqlInteger(),
+    type: gqlNullable(gqlInteger()),
     defaultValue: 25,
   },
 }

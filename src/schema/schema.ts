@@ -1,17 +1,16 @@
-import Router from "@koa/router"
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql"
-import { DefaultContext, DefaultState, ParameterizedContext } from "koa"
+import { ParameterizedContext } from "koa"
 import { DatabaseRepository } from "../lib/querybuilder.js"
 import { userResolver } from "./misc/user.js"
 import { triviaCategoryResolver } from "./trivia/category.js"
 import { triviaQuestionResolver } from "./trivia/question.js"
 
 export type SchemaContext = {
-  http: ParameterizedContext<DefaultState, DefaultContext & Router.RouterParamContext<DefaultState, DefaultContext>, unknown>
+  http: ParameterizedContext
   db: DatabaseRepository
   cache: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    [key: symbol]: any
+    [key: string | symbol]: any
   }
 }
 

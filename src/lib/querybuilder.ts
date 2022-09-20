@@ -4,6 +4,8 @@
 import Dataloader from "dataloader"
 
 export enum SqlOperator {
+  ROOT = 1 << 0,
+
   CUSTOM = 1 << 1,
 
   AND = 1 << 2,
@@ -82,8 +84,16 @@ export class SqlExpr<L = any, O extends SqlOperator = SqlOperator, R = any> impl
     private _right: R,
   ) { }
 
+  get left() {
+    return this._left
+  }
+
   get operator() {
     return this._operator
+  }
+
+  get right() {
+    return this._right
   }
 
   get queryLeft() {
@@ -126,7 +136,7 @@ export class SqlExpr<L = any, O extends SqlOperator = SqlOperator, R = any> impl
   get query() {
     let query = ""
 
-    if ((this._operator | SqlOperator.ASSIGN) !== SqlOperator.ASSIGN) {
+    if (((this._operator | SqlOperator.ROOT) !== SqlOperator.ROOT) && ((this._operator | SqlOperator.ASSIGN) !== SqlOperator.ASSIGN)) {
       query += "("
     }
 
@@ -134,7 +144,7 @@ export class SqlExpr<L = any, O extends SqlOperator = SqlOperator, R = any> impl
     query += stringifySqlOperator(this._operator)
     query += this.queryRight
 
-    if ((this._operator | SqlOperator.ASSIGN) !== SqlOperator.ASSIGN) {
+    if (((this._operator | SqlOperator.ROOT) !== SqlOperator.ROOT) && ((this._operator | SqlOperator.ASSIGN) !== SqlOperator.ASSIGN)) {
       query += ")"
     }
 
@@ -451,6 +461,18 @@ export class Selector implements HasQuery, HasValues {
     return this
   }
 
+  whereExists(func: (sub: Selector) => Selector) {
+    const sub = func(new Selector(this._createScript, this._exec))
+
+    return this.where(sub.asExists())
+  }
+
+  whereIn(field: SqlField, func: (sub: Selector) => Selector) {
+    const sub = func(new Selector(this._createScript, this._exec))
+
+    return this.where(sql`${field} IN ${sub.asExpr()}`)
+  }
+
   groupBy(field: string | SqlField) {
     this._data.groupings = [...(this._data.groupings ?? []), (field instanceof SqlField) ? field : new SqlField(field)]
 
@@ -569,8 +591,8 @@ export class Selector implements HasQuery, HasValues {
   asCount() {
     this._data.fields = [new QuerySelection("count(*)")]
 
-    const script = `${this._createScript(this._data)}`
-    return new SqlExpr(script, SqlOperator.CUSTOM, [])
+    const result = new SqlExpr(this.query, SqlOperator.CUSTOM, this.values)
+    return result
   }
 
   count() {
@@ -583,8 +605,8 @@ export class Selector implements HasQuery, HasValues {
   asExists() {
     this._data.fields = [new QuerySelection("1")]
 
-    const script = `EXISTS (${this._createScript(this._data)})`
-    return new SqlExpr(script, SqlOperator.CUSTOM, [])
+    const result = new SqlExpr(`EXISTS (${this.query})`, SqlOperator.CUSTOM, this.values)
+    return result
   }
 
   exists() {
@@ -594,8 +616,8 @@ export class Selector implements HasQuery, HasValues {
   }
 
   asExpr() {
-    const script = this._createScript(this._data)
-    return new SqlExpr(script, SqlOperator.CUSTOM, [])
+    const result = new SqlExpr(this.query, SqlOperator.CUSTOM, this.values)
+    return result
   }
 }
 
@@ -862,6 +884,13 @@ export const sql = (strings: TemplateStringsArray, ..._values: any[]) => {
   return expr
 }
 
+export const sqlQuery = (strings: TemplateStringsArray, ..._values: any[]) => {
+  const expr = sql(strings, ..._values)
+
+  const result = new SqlExpr(expr.left, expr.operator & SqlOperator.ROOT, expr.right)
+  return result
+}
+
 export const sqlField = (strings: TemplateStringsArray) => {
   const [source, name] = strings[0].split(".")
 
@@ -881,11 +910,11 @@ export abstract class DatabaseRepository {
 
   abstract remove(): Deleter
 
-  abstract beginTransaction(): void
+  abstract beginTransaction(): Promise<void>
 
-  abstract commitTransaction(): void
+  abstract commitTransaction(): Promise<void>
 
-  abstract rollbackTransaction(): void
+  abstract rollbackTransaction(): Promise<void>
 
   abstract newId(): string | number
 
@@ -1104,49 +1133,23 @@ export abstract class DatabaseRepository {
   private _inTransaction = false
   private _onTransactionCommit = undefined as (undefined | (() => unknown))
 
-  transaction<T>(handler: (repo: this) => T): T
-  transaction<T>(handler: (repo: this) => Promise<T>): Promise<T>
-  transaction<T>(handler: (repo: this) => T | Promise<T>): T | Promise<T> {
-    let potentialPromise: T | Promise<T> | undefined = undefined
-
-    this.beginTransaction()
+  async transaction<T>(handler: (repo: this) => T | Promise<T>): Promise<T> {
     this._inTransaction = true
+    await this.beginTransaction()
     try {
-      potentialPromise = handler(this)
+      const result = await handler(this)
 
-      if (potentialPromise instanceof Promise) {
-        return (async () => {
-          try {
-            await potentialPromise
+      await this.commitTransaction()
 
-            this.commitTransaction()
+      this._onTransactionCommit?.()
+      this._onTransactionCommit = undefined
 
-            this._onTransactionCommit?.()
-            this._onTransactionCommit = undefined
-
-            return potentialPromise
-          } catch (error) {
-            this.rollbackTransaction()
-            throw error
-          } finally {
-            this._inTransaction = false
-          }
-        })()
-      } else {
-        this.commitTransaction()
-
-        this._onTransactionCommit?.()
-        this._onTransactionCommit = undefined
-
-        return potentialPromise
-      }
+      return result
     } catch (error) {
-      this.rollbackTransaction()
+      await this.rollbackTransaction()
       throw error
     } finally {
-      if (!(potentialPromise instanceof Promise)) {
-        this._inTransaction = false
-      }
+      this._inTransaction = false
     }
   }
 
@@ -1156,6 +1159,13 @@ export abstract class DatabaseRepository {
 
   set onTransactionCommit(handler: () => unknown) {
     this._onTransactionCommit = handler
+  }
+
+  async execExpr(expr: SqlExpr) {
+    expr = new SqlExpr(expr.left, expr.operator & SqlOperator.ROOT, expr.right)
+
+    const result = await this.exec(expr.query, expr.values)
+    return result
   }
 }
 
