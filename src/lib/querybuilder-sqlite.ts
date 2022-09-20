@@ -46,11 +46,11 @@ const createSelectScript = (data: QueryBuilderData) => {
   }
 
   if (data.limit || data.offset) {
-    script += `\nLIMIT ${data.limit ?? -1}`
+    script += `\nLIMIT ${data.limit?.query ?? -1}`
   }
 
   if (data.offset) {
-    script += `\nOFFSET ${data.offset}`
+    script += `\nOFFSET ${data.offset.query}`
   }
 
   return script

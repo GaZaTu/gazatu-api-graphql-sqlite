@@ -4,6 +4,8 @@ import { DatabaseRepository } from "../lib/querybuilder.js"
 import { userResolver } from "./misc/user.js"
 import { triviaCategoryResolver } from "./trivia/category.js"
 import { triviaQuestionResolver } from "./trivia/question.js"
+import { stitchSchemas } from "@graphql-tools/stitch"
+import { triviaReportResolver } from "./trivia/report.js"
 
 export type SchemaContext = {
   http: ParameterizedContext
@@ -51,10 +53,29 @@ const buildSchema = (resolvers: SchemaFields[]) => {
   return schema
 }
 
-const schema = buildSchema([
+let schema = buildSchema([
   userResolver,
   triviaCategoryResolver,
   triviaQuestionResolver,
+  triviaReportResolver,
 ])
+
+schema = stitchSchemas({
+  subschemas: [schema],
+  typeDefs: `
+    extend type TriviaCategory {
+      questionsConnection: TriviaQuestionsConnection!
+    }
+
+    extend type TriviaQuestion {
+      reports: [TriviaReport!]!
+    }
+  `,
+  resolvers: {
+    TriviaCategory: {
+      questionsConnection: {},
+    },
+  },
+})
 
 export default schema

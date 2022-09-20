@@ -343,8 +343,8 @@ export type QueryBuilderData = {
   groupings?: SqlField[]
   groupingConditions?: SqlExpr[]
   ordering?: QueryBuilderOrderClause[]
-  offset?: number | null
-  limit?: number | null
+  offset?: SqlExpr
+  limit?: SqlExpr
   upsert?: QueryBuilderUpsertMode
   distinct?: boolean
 }
@@ -493,7 +493,7 @@ export class Selector implements HasQuery, HasValues {
     return this
   }
 
-  orderBy(field: string | SqlField | SqlExpr | undefined | null | false, direction?: OrderByDirection, nulls?: OrderByNulls) {
+  orderBy(field: string | SqlField | SqlExpr | undefined | false, direction?: OrderByDirection, nulls?: OrderByNulls) {
     if (!field) {
       return this
     }
@@ -509,16 +509,38 @@ export class Selector implements HasQuery, HasValues {
     return this
   }
 
-  offset(offset: number | null | undefined) {
+  offset(offset: number | null | undefined | SqlExpr) {
+    if (!offset) {
+      this._data.offset = undefined
+      return this
+    }
+
+    if (!(offset instanceof SqlExpr)) {
+      offset = sql`${offset}`
+    }
+
     this._data.offset = offset
 
     return this
   }
 
-  limit(limit: number | null | undefined) {
+  limit(limit: number | null | undefined | SqlExpr) {
+    if (!limit) {
+      this._data.limit = undefined
+      return this
+    }
+
+    if (!(limit instanceof SqlExpr)) {
+      limit = sql`${limit}`
+    }
+
     this._data.limit = limit
 
     return this
+  }
+
+  get data() {
+    return this._data
   }
 
   get query() {
@@ -552,13 +574,21 @@ export class Selector implements HasQuery, HasValues {
       values.push(...condition.values)
     }
 
+    if (this._data.limit) {
+      values.push(...this._data.limit.values)
+    }
+
+    if (this._data.offset) {
+      values.push(...this._data.offset.values)
+    }
+
     return values
   }
 
   async findMany<T extends Record<string, any> = Record<string, any>>(constructor?: SQLEntity<T>) {
     if (constructor) {
-      // this._data.table ??= new QuerySelection(constructor.name)
-      // this._data.fields ??= Object.keys(constructor.prototype).map(k => new QuerySelection(k))
+      this._data.table ??= new QuerySelection(constructor.entityName)
+      this._data.fields ??= Object.keys(constructor.schema).map(k => new QuerySelection(k))
     }
 
     this._data.fields ??= [new QuerySelection(this._data.table?.alias ? `${this._data.table.alias}.*` : "*")]

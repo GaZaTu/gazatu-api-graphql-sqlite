@@ -123,7 +123,18 @@ export const triviaQuestionResolver: SchemaFields = {
         },
         categoryId: {
           type: gqlNullable(gqlString()),
-          defaultValue: null,
+        },
+        includeCategories: {
+          type: gqlNullable(gqlArray(gqlString())),
+        },
+        excludeCategories: {
+          type: gqlNullable(gqlArray(gqlString())),
+        },
+        includeSubmitters: {
+          type: gqlNullable(gqlArray(gqlString())),
+        },
+        excludeSubmitters: {
+          type: gqlNullable(gqlArray(gqlString())),
         },
       }),
       resolve: async (self, { args }, ctx) => {
@@ -133,7 +144,7 @@ export const triviaQuestionResolver: SchemaFields = {
             .from(TriviaQuestionSQL)
             .where((typeof args?.verified === "boolean") && sql`${TriviaQuestionSQL.schema.verified} = ${args.verified}`)
             .where((typeof args?.disabled === "boolean") && sql`${TriviaQuestionSQL.schema.disabled} = ${args.disabled}`)
-            .orderBy(!!args?.shuffled && sql`RANDOM()`)
+            .orderBy(!!args?.shuffled && sql`random()`)
 
           if (args?.categoryId) {
             query.whereIn(TriviaQuestionSQL.schema.id, sub => sub
@@ -141,6 +152,32 @@ export const triviaQuestionResolver: SchemaFields = {
               .from(N2MTriviaQuestionTriviaCategorySQL)
               .where(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId} = ${args.categoryId}`)
             )
+          }
+
+          if (args?.includeCategories) {
+            query.whereIn(TriviaQuestionSQL.schema.id, sub => sub
+              .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
+              .from(N2MTriviaQuestionTriviaCategorySQL)
+              .join(TriviaCategorySQL).on(sql`${TriviaCategorySQL.schema.id} = ${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId}`)
+              .where(sql`${TriviaCategorySQL.schema.name} IN ${args.includeCategories}`)
+            )
+          }
+
+          if (args?.excludeCategories) {
+            query.whereIn(TriviaQuestionSQL.schema.id, sub => sub
+              .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
+              .from(N2MTriviaQuestionTriviaCategorySQL)
+              .join(TriviaCategorySQL).on(sql`${TriviaCategorySQL.schema.id} = ${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId}`)
+              .where(sql`${TriviaCategorySQL.schema.name} NOT IN ${args.excludeCategories}`)
+            )
+          }
+
+          if (args?.includeSubmitters) {
+            query.where(sql`${TriviaQuestionSQL.schema.submitter} IN ${args.includeSubmitters}`)
+          }
+
+          if (args?.excludeSubmitters) {
+            query.where(sql`${TriviaQuestionSQL.schema.submitter} NOT IN ${args.excludeSubmitters}`)
           }
 
           applySortToQuery(query, TriviaQuestionSQL, args)

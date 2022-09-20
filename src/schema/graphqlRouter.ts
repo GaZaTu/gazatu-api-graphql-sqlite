@@ -107,7 +107,7 @@ export const getCompiledGraphQLQuery = async <T>(request: Omit<GraphQLRequest, "
   return result
 }
 
-export const executeGraphQLInTransaction = async <T>(request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }, options?: { dbApi?: SchemaContext["db"], ignoreComplexity?: boolean }) => {
+export const executeGraphQLInTransaction = async <T>(request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }, options?: { dbApi?: SchemaContext["db"], throwErrors?: boolean, ignoreComplexity?: boolean }) => {
   const execute = await getCompiledGraphQLQuery<T>(request)
   const dbApi = options?.dbApi ?? await useDatabaseApi()
 
@@ -123,6 +123,10 @@ export const executeGraphQLInTransaction = async <T>(request: GraphQLRequest & {
   }
 
   const result = await dbApi.transaction(() => execute({}, context, variables))
+  if (options?.throwErrors && result.errors?.[0]) {
+    throw result.errors?.[0]
+  }
+
   return result
 }
 

@@ -42,13 +42,13 @@ type Query = {
 }
 
 triviaRouter.get("/questions", async ctx => {
-  const exclude = qArray(ctx, q => q.exclude ?? q.exc)
-  const include = qArray(ctx, q => q.include ?? q.inc)
-  const submitters = qArray(ctx, q => q.submitters)
+  const limit = qNumber(ctx, q => q.limit ?? q.count) ?? 10
   const verified = qBoolean(ctx, q => q.verified) ?? true
   const disabled = qBoolean(ctx, q => q.disabled) ?? false
   const shuffled = qBoolean(ctx, q => q.shuffled) ?? true
-  const limit = qNumber(ctx, q => q.limit ?? q.count) ?? 10
+  const include = qArray(ctx, q => q.include ?? q.inc)
+  const exclude = qArray(ctx, q => q.exclude ?? q.exc)
+  const submitters = qArray(ctx, q => q.submitters)
 
   const result = await executeGraphQLInTransaction<Query>({
     query: `
@@ -75,41 +75,20 @@ triviaRouter.get("/questions", async ctx => {
         verified,
         disabled,
         shuffled,
+        includeCategories: include,
+        excludeCategories: exclude,
+        includeSubmitters: submitters,
       },
     },
     context: {
       http: ctx,
     },
   }, {
+    throwErrors: true,
     ignoreComplexity: true,
   })
 
   const questions = (result.data?.triviaQuestionsConnection?.slice ?? [])
-    .filter(({ categories }) => {
-      for (const category of categories) {
-        if (exclude?.includes(category.name)) {
-          return false
-        }
-      }
-
-      return true
-    })
-    .filter(({ categories }) => {
-      for (const required of include ?? []) {
-        if (!categories.map(c => c.name).includes(required)) {
-          return false
-        }
-      }
-
-      return true
-    })
-    .filter(({ submitter }) => {
-      if (submitters) {
-        return submitters.includes(submitter ?? "")
-      }
-
-      return true
-    })
     .map(question => ({
       ...question,
       categories: question.categories.map(c => c.name),
