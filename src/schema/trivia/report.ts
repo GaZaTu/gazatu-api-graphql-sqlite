@@ -1,5 +1,5 @@
 import { Infer, nullable, object, optional, size, string } from "superstruct"
-import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType, gqlUnset } from "../../lib/gqlResolver.js"
+import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
 import { sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
@@ -23,7 +23,7 @@ export const [
   TriviaReportGraphQLInput,
 ] = superstructToGraphQL<SchemaContext>()(TriviaReportSchema, {
   name: "TriviaReport",
-  fields: () => ({
+  fields: {
     question: gqlResolver({
       type: gqlType(TriviaQuestionGraphQL),
       resolve: async (self: TriviaReport, args, ctx: SchemaContext) => {
@@ -32,7 +32,7 @@ export const [
         return result!
       },
     }),
-  }),
+  },
   inputFields: {
     questionId: { type: gqlUnset() },
     createdAt: { type: gqlUnset() },
@@ -112,6 +112,42 @@ export const triviaReportResolver: SchemaFields = {
           .save(input)
         return result
       },
+      extensions: {
+        complexity: Complexity.MUTATION,
+      },
+    }),
+    removeTriviaReports: gqlResolver({
+      type: gqlVoid(),
+      args: {
+        ids: {
+          type: gqlArray(gqlString()),
+        },
+      },
+      resolve: async (self, { ids }, ctx) => {
+        await assertAuth(ctx, ["trivia/admin"])
+
+        await ctx.db.of(TriviaReportSQL)
+          .removeManyById(ids)
+      },
+      description: "requires role: trivia/admin",
+      extensions: {
+        complexity: Complexity.MUTATION,
+      },
+    }),
+    removeTriviaReportsByQuestionId: gqlResolver({
+      type: gqlVoid(),
+      args: {
+        questionId: {
+          type: gqlArray(gqlString()),
+        },
+      },
+      resolve: async (self, { questionId }, ctx) => {
+        await assertAuth(ctx, ["trivia/admin"])
+
+        await ctx.db.of(TriviaReportSQL)
+          .removeMany(sql`${TriviaReportSQL.schema.questionId} = ${questionId}`)
+      },
+      description: "requires role: trivia/admin",
       extensions: {
         complexity: Complexity.MUTATION,
       },

@@ -105,6 +105,8 @@ const expandMacros = (script: string) => {
 }
 
 const databaseAfterOpen = async (database: sqlite3.Database) => {
+  database.configure("busyTimeout", 10000)
+
   await exec(database, "PRAGMA journal_mode = wal")
   await exec(database, "PRAGMA wal_autocheckpoint = 512")
   await exec(database, "PRAGMA synchronous = normal")
@@ -165,13 +167,13 @@ const open = async (options = { trace: true }) => {
   })
 
   if (options.trace && process.env.NODE_ENV !== "production") {
-    // database.on("trace", sql => {
-    //   if (sql.startsWith("PRAGMA") || sql.startsWith("--")) {
-    //     return
-    //   }
+    database.on("trace", sql => {
+      if (sql.startsWith("PRAGMA") || sql.startsWith("--")) {
+        return
+      }
 
-    //   console.log(`${sql};`)
-    // })
+      console.log(`${sql};`)
+    })
   }
 
   return Object.assign(database, {
@@ -194,14 +196,22 @@ const open = async (options = { trace: true }) => {
 const createCachedAll = (db: sqlite3.Database) => {
   const statementCache = new Map<string, sqlite3.Statement>()
 
-  const getStatement = (query: string) => {
+  const getStatement = async (query: string) => {
     const cacheKey = crypto.createHash("md5").update(query).digest("hex")
 
     if (statementCache.has(cacheKey)) {
       return statementCache.get(cacheKey)!
     }
 
-    const result = db.prepare(query)
+    const result = await new Promise<sqlite3.Statement>((resolve, reject) => {
+      const statement = db.prepare(query, err => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve(statement)
+        }
+      })
+    })
 
     statementCache.set(cacheKey, result)
     return result
@@ -222,22 +232,34 @@ const createCachedAll = (db: sqlite3.Database) => {
     },
   })
 
-  return (query: string, values: any[]) => {
+  const result = (query: string, values: any[]) => {
     return new Promise<Record<string, any>[]>((resolve, reject) => {
-      getStatement(query).all(values, (err, row) => {
-        if (err) {
-          reject(err)
-        } else {
-          resolve(row)
-        }
-      })
+      void (async () => {
+        const statement = await getStatement(query)
+
+        statement.all(values, (err, rows) => {
+          statement.reset(() => {
+            if (err) {
+              if ((err as any).code === "SQLITE_BUSY") {
+                result(query, values).then(resolve, reject)
+              } else {
+                reject(err)
+              }
+            } else {
+              resolve(rows)
+            }
+          })
+        })
+      })()
     })
   }
+  return result
 }
 
 export type DatabaseConnection = {
   db: Awaited<ReturnType<typeof open>>
   dbApi: SQLite3Repository
+  inUse?: boolean
   timeoutId?: any
 }
 
@@ -296,17 +318,24 @@ Object.assign(databaseUpdateHooks, {
   },
 })
 
-const useDatabaseApi = async () => {
-  const refreshTimeout = (connection: DatabaseConnection) => {
+const useDatabaseApi = async <T>(user: (dbApi: SQLite3Repository) => Promise<T>) => {
+  const use = async (connection: DatabaseConnection) => {
+    connection.dbApi.clearCache()
+
+    connection.inUse = true
     clearTimeout(connection.timeoutId)
-    connection.timeoutId = setTimeout(() => databaseConnections.delete(connection), 1000 * 60 * 10) // 10 minutes
+
+    try {
+      return await user(connection.dbApi)
+    } finally {
+      connection.timeoutId = setTimeout(() => databaseConnections.delete(connection), 1000 * 60 * 10) // 10 minutes
+      connection.inUse = false
+    }
   }
 
   for (const connection of databaseConnections) {
-    if (!connection.dbApi.inTransaction) {
-      refreshTimeout(connection)
-
-      return connection.dbApi
+    if (!connection.inUse) {
+      return await use(connection)
     }
   }
 
@@ -314,10 +343,9 @@ const useDatabaseApi = async () => {
   const dbApi = new SQLite3Repository(createCachedAll(db))
 
   const connection = { db, dbApi } as DatabaseConnection
-  refreshTimeout(connection)
-
   databaseConnections.add(connection)
-  return connection.dbApi
+
+  return await use(connection)
 }
 
 export default useDatabaseApi

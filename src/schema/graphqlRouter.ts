@@ -1,5 +1,5 @@
 import Router from "@koa/router"
-import { ExecutionResult, GraphQLError, parse, specifiedRules, validate } from "graphql"
+import { ExecutionResult, GraphQLError, parse, validate } from "graphql"
 import { compileQuery, isCompiledQuery } from "graphql-jit"
 import { fieldExtensionsEstimator, getComplexity, simpleEstimator } from "graphql-query-complexity"
 import { HttpError } from "koa"
@@ -7,6 +7,7 @@ import crypto from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { any, Infer, nullable, object, optional, record, string } from "superstruct"
 import { projectDir } from "../lib/moduleDir.js"
+import { qJson, qString } from "../lib/query-parsing.js"
 import { Complexity } from "./graphql-complexity.js"
 import schema, { SchemaContext } from "./schema.js"
 import useDatabaseApi from "./useDatabaseApi.js"
@@ -30,7 +31,7 @@ type CompiledQueryFunc<T> = (root: unknown, context: SchemaContext, variables: R
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const graphqlQueryCache = new Map<string, CompiledQueryFunc<any>>()
 
-export const getCompiledGraphQLQuery = async <T>(request: Omit<GraphQLRequest, "variables">) => {
+export const getCompiledGraphQLQuery = <T>(request: Omit<GraphQLRequest, "variables">) => {
   const cacheKeySource = `|${JSON.stringify(request.query)}|${JSON.stringify(request.operationName ?? "")}|`
   const cacheKey = crypto.createHash("md5").update(cacheKeySource).digest("hex")
 
@@ -44,7 +45,7 @@ export const getCompiledGraphQLQuery = async <T>(request: Omit<GraphQLRequest, "
   } = request
 
   const document = parse(query, {
-    maxTokens: Complexity.MAX,
+    maxTokens: 500,
   })
 
   const assertComplexity = (variables: Parameters<CompiledQueryFunc<T>>[2]) => {
@@ -65,7 +66,7 @@ export const getCompiledGraphQLQuery = async <T>(request: Omit<GraphQLRequest, "
     }
   }
 
-  const validationErrors = validate(schema, document, [...specifiedRules /** , depthLimit(8) */])
+  const validationErrors = validate(schema, document)
   if (validationErrors[0]) {
     throw validationErrors[0]
   }
@@ -107,27 +108,28 @@ export const getCompiledGraphQLQuery = async <T>(request: Omit<GraphQLRequest, "
   return result
 }
 
-export const executeGraphQLInTransaction = async <T>(request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }, options?: { dbApi?: SchemaContext["db"], throwErrors?: boolean, ignoreComplexity?: boolean }) => {
-  const execute = await getCompiledGraphQLQuery<T>(request)
-  const dbApi = options?.dbApi ?? await useDatabaseApi()
+export const executeGraphQLWithDatabase = async <T>(request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }, options?: { throwErrors?: boolean, ignoreComplexity?: boolean }) => {
+  const execute = getCompiledGraphQLQuery<T>(request)
 
-  const context = {
-    ...request.context,
-    db: dbApi,
-    cache: {},
-  }
+  return await useDatabaseApi(async dbApi => {
+    const context = {
+      ...request.context,
+      db: dbApi,
+      cache: {},
+    }
 
-  const variables = {
-    ...request.variables,
-    ...(options?.ignoreComplexity ? { [ignoreComplexity]: true } : {}),
-  }
+    const variables = {
+      ...request.variables,
+      ...(options?.ignoreComplexity ? { [ignoreComplexity]: true } : {}),
+    }
 
-  const result = await dbApi.transaction(() => execute({}, context, variables))
-  if (options?.throwErrors && result.errors?.[0]) {
-    throw result.errors?.[0]
-  }
+    const result = await execute({}, context, variables)
+    if (options?.throwErrors && result.errors?.[0]) {
+      throw result.errors?.[0]
+    }
 
-  return result
+    return result
+  })
 }
 
 export const handleGraphQLRequest = async (ctx: SchemaContext["http"], requestObject: unknown) => {
@@ -151,7 +153,7 @@ export const handleGraphQLRequest = async (ctx: SchemaContext["http"], requestOb
 
   const response = await (async () => {
     try {
-      return await executeGraphQLInTransaction({
+      return await executeGraphQLWithDatabase({
         ...request,
         context: {
           http: ctx,
@@ -175,6 +177,10 @@ export const handleGraphQLRequest = async (ctx: SchemaContext["http"], requestOb
       if (error instanceof GraphQLError) {
         if (error.originalError instanceof HttpError) {
           ctx.response.status = error.originalError.status
+        }
+
+        if (error.originalError && process.env.NODE_ENV !== "production") {
+          error.stack = error.originalError.stack
         }
       }
     }
@@ -213,17 +219,12 @@ graphqlRouter.post("/graphql", async ctx => {
 })
 
 graphqlRouter.get("/graphql", async ctx => {
-  const {
-    query: queryParam,
-    variables: variablesParam,
-    operationName,
-  } = ctx.request.query
+  const query = qString(ctx, q => q.query ?? q.q)
+  const variables = qJson(ctx, q => q.variables ?? q.v)
+  const operationName = qString(ctx, q => q.operationName ?? q.o)
 
-  const query = String(queryParam)
-  const variables = variablesParam ? JSON.parse(String(variablesParam)) : undefined
-
-  if (!query.startsWith("{") || !query.endsWith("}")) {
-    throw ctx.throw(405, "Expected GraphQL format: { ... }")
+  if (!query?.startsWith("{") || !query?.endsWith("}")) {
+    throw ctx.throw(405, "Expected GraphQL format: ?q={/* graphql */}")
   }
 
   await handleGraphQLRequest(ctx, { query, variables, operationName })

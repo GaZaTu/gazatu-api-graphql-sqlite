@@ -1,18 +1,18 @@
 import { array, boolean, Infer, nullable, object, optional, size, string } from "superstruct"
 import { ulid } from "ulid"
 import gqlResolver, { gqlArgsInput, gqlArray, gqlBoolean, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
-import { Complexity } from "../graphql-complexity.js"
 import { ASSIGN, sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import assertAuth from "../assertAuth.js"
 import assertInput from "../assertInput.js"
-import getN2MDataLoaderFromContext from "../getN2MDataLoaderFromContext.js"
+import { getN2MDataLoaderFromContext } from "../getDataLoaderFromContext.js"
+import { Complexity } from "../graphql-complexity.js"
 import { findManyPaginated, gqlPagination, gqlPaginationArgs } from "../pagination.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
 import { applySearchToQuery, applySortToQuery, gqlSearchArgs, gqlSortArgs } from "../searching.js"
 import { TriviaCategoryGraphQL, TriviaCategorySchema, TriviaCategorySQL } from "./category.js"
-import { triviaSSEOTPSet } from "./triviaRouter.js"
+import { triviaEventsOTPSet } from "./triviaRouter.js"
 
 const triviaQuestionCategoriesDataLoader = Symbol()
 
@@ -121,9 +121,6 @@ export const triviaQuestionResolver: SchemaFields = {
           type: gqlNullable(gqlBoolean()),
           defaultValue: false,
         },
-        categoryId: {
-          type: gqlNullable(gqlString()),
-        },
         includeCategories: {
           type: gqlNullable(gqlArray(gqlString())),
         },
@@ -136,56 +133,56 @@ export const triviaQuestionResolver: SchemaFields = {
         excludeSubmitters: {
           type: gqlNullable(gqlArray(gqlString())),
         },
+        categoryId: {
+          type: gqlNullable(gqlString()),
+        },
       }),
       resolve: async (self, { args }, ctx) => {
-        const result = await findManyPaginated(TriviaQuestionSQL, args, () => {
-          const query = ctx.db
-            .select(TriviaQuestionSQL)
-            .from(TriviaQuestionSQL)
-            .where((typeof args?.verified === "boolean") && sql`${TriviaQuestionSQL.schema.verified} = ${args.verified}`)
-            .where((typeof args?.disabled === "boolean") && sql`${TriviaQuestionSQL.schema.disabled} = ${args.disabled}`)
-            .orderBy(!!args?.shuffled && sql`random()`)
+        const query = ctx.db
+          .select(TriviaQuestionSQL)
+          .from(TriviaQuestionSQL)
+          .where((typeof args?.verified === "boolean") && sql`${TriviaQuestionSQL.schema.verified} = ${args.verified}`)
+          .where((typeof args?.disabled === "boolean") && sql`${TriviaQuestionSQL.schema.disabled} = ${args.disabled}`)
+          .orderBy(!!args?.shuffled && sql`random()`)
 
-          if (args?.categoryId) {
-            query.whereIn(TriviaQuestionSQL.schema.id, sub => sub
-              .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
-              .from(N2MTriviaQuestionTriviaCategorySQL)
-              .where(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId} = ${args.categoryId}`)
-            )
-          }
+        if (args?.includeCategories) {
+          query.whereIn(TriviaQuestionSQL.schema.id, sub => sub
+            .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
+            .from(N2MTriviaQuestionTriviaCategorySQL)
+            .join(TriviaCategorySQL).on(sql`${TriviaCategorySQL.schema.id} = ${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId}`)
+            .where(sql`${TriviaCategorySQL.schema.name} IN ${args.includeCategories}`)
+          )
+        }
 
-          if (args?.includeCategories) {
-            query.whereIn(TriviaQuestionSQL.schema.id, sub => sub
-              .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
-              .from(N2MTriviaQuestionTriviaCategorySQL)
-              .join(TriviaCategorySQL).on(sql`${TriviaCategorySQL.schema.id} = ${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId}`)
-              .where(sql`${TriviaCategorySQL.schema.name} IN ${args.includeCategories}`)
-            )
-          }
+        if (args?.excludeCategories) {
+          query.whereIn(TriviaQuestionSQL.schema.id, sub => sub
+            .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
+            .from(N2MTriviaQuestionTriviaCategorySQL)
+            .join(TriviaCategorySQL).on(sql`${TriviaCategorySQL.schema.id} = ${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId}`)
+            .where(sql`${TriviaCategorySQL.schema.name} NOT IN ${args.excludeCategories}`)
+          )
+        }
 
-          if (args?.excludeCategories) {
-            query.whereIn(TriviaQuestionSQL.schema.id, sub => sub
-              .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
-              .from(N2MTriviaQuestionTriviaCategorySQL)
-              .join(TriviaCategorySQL).on(sql`${TriviaCategorySQL.schema.id} = ${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId}`)
-              .where(sql`${TriviaCategorySQL.schema.name} NOT IN ${args.excludeCategories}`)
-            )
-          }
+        if (args?.includeSubmitters) {
+          query.where(sql`${TriviaQuestionSQL.schema.submitter} IN ${args.includeSubmitters}`)
+        }
 
-          if (args?.includeSubmitters) {
-            query.where(sql`${TriviaQuestionSQL.schema.submitter} IN ${args.includeSubmitters}`)
-          }
+        if (args?.excludeSubmitters) {
+          query.where(sql`${TriviaQuestionSQL.schema.submitter} NOT IN ${args.excludeSubmitters}`)
+        }
 
-          if (args?.excludeSubmitters) {
-            query.where(sql`${TriviaQuestionSQL.schema.submitter} NOT IN ${args.excludeSubmitters}`)
-          }
+        if (args?.categoryId) {
+          query.whereIn(TriviaQuestionSQL.schema.id, sub => sub
+            .select([N2MTriviaQuestionTriviaCategorySQL.schema.questionId])
+            .from(N2MTriviaQuestionTriviaCategorySQL)
+            .where(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.categoryId} = ${args.categoryId}`)
+          )
+        }
 
-          applySortToQuery(query, TriviaQuestionSQL, args)
-          applySearchToQuery(query, TriviaQuestionSQL, args, TriviaQuestionFTSSQL)
+        applySortToQuery(query, TriviaQuestionSQL, args)
+        applySearchToQuery(query, TriviaQuestionSQL, args, TriviaQuestionFTSSQL)
 
-          return query
-        })
-
+        const result = await findManyPaginated(query, args, TriviaQuestionSQL)
         return result
       },
       extensions: {
@@ -251,6 +248,9 @@ export const triviaQuestionResolver: SchemaFields = {
           .updateManyById(ASSIGN(TriviaQuestionSQL.schema.verified, true), ids)
       },
       description: "requires role: trivia/admin",
+      extensions: {
+        complexity: Complexity.MUTATION,
+      },
     }),
     disableTriviaQuestions: gqlResolver({
       type: gqlVoid(),
@@ -266,22 +266,28 @@ export const triviaQuestionResolver: SchemaFields = {
           .updateManyById(ASSIGN(TriviaQuestionSQL.schema.disabled, true), ids)
       },
       description: "requires role: trivia/admin",
+      extensions: {
+        complexity: Complexity.MUTATION,
+      },
     }),
   },
   subscription: {
-    triviaSSE: gqlResolver({
+    triviaEventsOTP: gqlResolver({
       type: gqlString(),
       resolve: async (self, args, ctx) => {
         await assertAuth(ctx, ["trivia/admin"])
 
         const otp = ulid()
 
-        triviaSSEOTPSet.add(otp)
-        setTimeout(() => triviaSSEOTPSet.delete(otp), 10000)
+        triviaEventsOTPSet.add(otp)
+        setTimeout(() => triviaEventsOTPSet.delete(otp), 10000)
 
         return otp
       },
       description: "requires role: trivia/admin",
+      extensions: {
+        complexity: Complexity.MUTATION,
+      },
     }),
   },
 }

@@ -1,11 +1,12 @@
 import { boolean, Infer, nullable, object, optional, size, string } from "superstruct"
-import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType, gqlUnset } from "../../lib/gqlResolver.js"
+import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
 import { Complexity } from "../graphql-complexity.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import assertAuth from "../assertAuth.js"
 import assertInput from "../assertInput.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
+import { ASSIGN } from "../../lib/querybuilder.js"
 
 export const TriviaCategorySchema = object({
   id: optional(nullable(string())),
@@ -88,6 +89,44 @@ export const triviaCategoryResolver: SchemaFields = {
         const [result] = await ctx.db.of(TriviaCategorySQL)
           .save(input)
         return result
+      },
+      description: "requires role: trivia/admin",
+      extensions: {
+        complexity: Complexity.MUTATION,
+      },
+    }),
+    verifyTriviaCategories: gqlResolver({
+      type: gqlVoid(),
+      args: {
+        ids: {
+          type: gqlArray(gqlString()),
+        },
+      },
+      resolve: async (self, { ids }, ctx) => {
+        await assertAuth(ctx, ["trivia/admin"])
+
+        await ctx.db.of(TriviaCategorySQL)
+          .updateManyById(ASSIGN(TriviaCategorySQL.schema.verified, true), ids)
+      },
+      description: "requires role: trivia/admin",
+      extensions: {
+        complexity: Complexity.MUTATION,
+      },
+    }),
+    removeTriviaCategories: gqlResolver({
+      type: gqlVoid(),
+      args: {
+        ids: {
+          type: gqlArray(gqlString()),
+        },
+      },
+      resolve: async (self, { ids }, ctx) => {
+        await assertAuth(ctx, ["trivia/admin"])
+
+        await new Promise(resolve => setTimeout(resolve, 10000))
+
+        await ctx.db.of(TriviaCategorySQL)
+          .removeManyById(ids)
       },
       description: "requires role: trivia/admin",
       extensions: {

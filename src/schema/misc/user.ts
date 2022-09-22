@@ -7,7 +7,7 @@ import { signJwt } from "../../lib/jwt.js"
 import { sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
-import getN2MDataLoaderFromContext from "../getN2MDataLoaderFromContext.js"
+import { getN2MDataLoaderFromContext } from "../getDataLoaderFromContext.js"
 import { Complexity } from "../graphql-complexity.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
 
@@ -188,7 +188,7 @@ export const userResolver: SchemaFields = {
       },
       resolve: authenticate,
       extensions: {
-        complexity: Complexity.MAX,
+        complexity: Complexity.MUTATION,
       },
     }),
     registerUser: gqlResolver({
@@ -232,7 +232,7 @@ export const userResolver: SchemaFields = {
         return result
       },
       extensions: {
-        complexity: Complexity.MAX,
+        complexity: Complexity.MUTATION,
       },
     }),
   },

@@ -1,7 +1,7 @@
 /* eslint-disable no-empty */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import Dataloader from "dataloader"
+import DataLoader from "dataloader"
 
 export enum SqlOperator {
   ROOT = 1 << 0,
@@ -191,6 +191,10 @@ export class SqlField<T = any> extends SqlExpr {
     if (this._name.includes(".")) {
       [this._source, this._name] = this._name.split(".")
     }
+  }
+
+  get rawName() {
+    return this._name
   }
 
   get name() {
@@ -633,7 +637,7 @@ export class Selector implements HasQuery, HasValues {
     this._data.fields = [new QuerySelection("count(*)")]
 
     return this
-      .findFirstValue<number>()
+      .findFirstValue<number>() ?? 0
   }
 
   asExists() {
@@ -954,9 +958,23 @@ export abstract class DatabaseRepository {
 
   abstract exec(query: string, values: any[]): Promise<Record<string, any>[]>
 
-  private _dataloaders = new Map<string | SQLEntity, Dataloader<string, any>>()
+  private _dataloaders = {
+    count: new Map<string | SQLEntity, Map<string, DataLoader<unknown, any>>>(),
+    findMany: new Map<string | SQLEntity, Map<string, DataLoader<unknown, any>>>(),
+    findOne: new Map<string | SQLEntity, Map<string, DataLoader<unknown, any>>>(),
+  }
 
-  of<T extends Record<string, any> = Record<string, any>>(table: string | SQLEntity<T>) {
+  clearCache() {
+    for (const dataloaderMap of Object.values(this._dataloaders)) {
+      for (const [, dataloaders] of dataloaderMap) {
+        for (const [, dataloader] of dataloaders) {
+          dataloader.clearAll()
+        }
+      }
+    }
+  }
+
+  private createTableAccess<T extends Record<string, any> = Record<string, any>>(table: string | SQLEntity<T>) {
     const hasIdColumn = (() => {
       if (typeof table === "string") {
         return true
@@ -971,6 +989,53 @@ export abstract class DatabaseRepository {
         .from(table)
         .where(condition)
         .findFirstValue<number>()
+    }
+
+    const countWithDataLoader: (typeof count) = async condition => {
+      if (!condition || !(condition.left instanceof SqlField) || (condition.right instanceof SqlField) || (condition.right instanceof SqlExpr)) {
+        return await count(condition)
+      }
+
+      if (condition.operator !== SqlOperator.EQ) {
+        return await count(condition)
+      }
+
+      let record = this._dataloaders.count.get(table)
+      if (!record) {
+        record = new Map()
+
+        this._dataloaders.count.set(table, record)
+      }
+
+      let dataloader = record.get(condition.query)
+      if (!dataloader) {
+        dataloader = new DataLoader(async keys => {
+          const filter = keys.slice()
+          while (filter.length < 128) {
+            filter.push("")
+          }
+
+          const list = await this
+            .select(["count(*)", condition.left.rawName])
+            .from(table)
+            .groupBy(condition.left.rawName)
+            .where(IN(condition.left, filter))
+            .findMany()
+
+          const map = new Map(
+            list
+              .map(r => [r[condition.left.rawName], r["count(*)"]] as const)
+          )
+
+          return keys
+            .map(key => map.get(key) ?? 0)
+        }, { maxBatchSize: 128 })
+
+        record.set(condition.query, dataloader)
+      }
+
+      const result = await dataloader.load(condition.right)
+      return result
     }
 
     const findId = (condition: SqlExpr) => {
@@ -989,8 +1054,50 @@ export abstract class DatabaseRepository {
         .findMany<T>(typeof table !== "string" ? table : undefined)
     }
 
+    const findManyWithDataLoader: (typeof findMany) = async condition => {
+      if (!condition || !(condition.left instanceof SqlField) || (condition.right instanceof SqlField) || (condition.right instanceof SqlExpr)) {
+        return await findMany(condition)
+      }
+
+      if (condition.operator !== SqlOperator.EQ) {
+        return await findMany(condition)
+      }
+
+      let record = this._dataloaders.findMany.get(table)
+      if (!record) {
+        record = new Map()
+
+        this._dataloaders.findMany.set(table, record)
+      }
+
+      let dataloader = record.get(condition.query)
+      if (!dataloader) {
+        dataloader = new DataLoader(async values => {
+          const filter = values.slice()
+          while (filter.length < 128) {
+            filter.push("")
+          }
+
+          const list = await findMany(IN(condition.left, filter))
+
+          return values
+            .map(value => list.filter(e => e[condition.left.rawName] === value))
+        }, { maxBatchSize: 128 })
+
+        record.set(condition.query, dataloader)
+      }
+
+      const result = await dataloader.load(condition.right)
+      return result
+    }
+
     const findManyById = (ids: (string | number | null | undefined)[]) => {
-      return findMany(IN(sqlField`id`, ids))
+      const filter = ids.slice()
+      while (filter.length < 128) {
+        filter.push("")
+      }
+
+      return findMany(IN(sqlField`id`, filter))
     }
 
     const findOne = (condition: SqlExpr) => {
@@ -1001,35 +1108,52 @@ export abstract class DatabaseRepository {
         .findOne<T>(typeof table !== "string" ? table : undefined)
     }
 
-    const findOneById = (id: string | number | null | undefined) => {
-      return findOne(EQ(sqlField`id`, id))
-    }
-
-    const dataloader = (() => {
-      let dataloader = this._dataloaders.get(table)
-      if (!dataloader) {
-        dataloader = new Dataloader(async ids => {
-          const map = new Map(
-            (await findManyById(ids as any[]))
-              .map(r => [r["id"], r] as const)
-          )
-
-          return ids
-            .map(id => map.get(id))
-        })
-
-        this._dataloaders.set(table, dataloader)
+    const findOneWithDataLoader: (typeof findOne) = async condition => {
+      if (!(condition.left instanceof SqlField) || (condition.right instanceof SqlField) || (condition.right instanceof SqlExpr)) {
+        return await findOne(condition)
       }
 
-      return dataloader
-    })()
+      if (condition.operator !== SqlOperator.EQ) {
+        return await findOne(condition)
+      }
 
-    const findOneByIdWithDataloader: (typeof findOneById) = async id => {
-      return await dataloader.load(id as any)
+      let record = this._dataloaders.findOne.get(table)
+      if (!record) {
+        record = new Map()
+
+        this._dataloaders.findOne.set(table, record)
+      }
+
+      let dataloader = record.get(condition.query)
+      if (!dataloader) {
+        dataloader = new DataLoader(async values => {
+          const filter = values.slice()
+          while (filter.length < 128) {
+            filter.push("")
+          }
+
+          const map = new Map(
+            (await findMany(IN(condition.left, filter)))
+              .map(r => [r[condition.left.rawName], r] as const)
+          )
+
+          return values
+            .map(value => map.get(value))
+        }, { maxBatchSize: 128 })
+
+        record.set(condition.query, dataloader)
+      }
+
+      const result = await dataloader.load(condition.right)
+      return result
+    }
+
+    const findOneById = (id: string | number | null | undefined) => {
+      return findOneWithDataLoader(EQ(sqlField`id`, id))
     }
 
     const exists = async (condition: SqlExpr) => {
-      const r = await findOne(condition)
+      const r = await findOneWithDataLoader(condition)
       return r !== undefined
     }
 
@@ -1068,7 +1192,7 @@ export abstract class DatabaseRepository {
         await qb.execute()
 
         if (hasIdColumn) {
-          Object.assign(object, await findOneByIdWithDataloader(object.id as any))
+          Object.assign(object, await findOneById(object.id as any))
         }
       }
 
@@ -1076,6 +1200,8 @@ export abstract class DatabaseRepository {
     }
 
     const removeMany = (condition?: SqlExpr) => {
+      // TODO: DataLoader
+
       return this
         .remove()
         .from(table)
@@ -1084,7 +1210,12 @@ export abstract class DatabaseRepository {
     }
 
     const removeManyById = (ids: (string | number)[]) => {
-      return removeMany(IN(sqlField`id`, ids))
+      const filter = ids.slice()
+      while (filter.length < 128) {
+        filter.push("")
+      }
+
+      return removeMany(IN(sqlField`id`, filter))
     }
 
     const removeOneById = (id: string | number) => {
@@ -1110,6 +1241,8 @@ export abstract class DatabaseRepository {
     }
 
     const updateMany = (expr: SqlExpr, condition?: SqlExpr) => {
+      // TODO: DataLoader
+
       return this
         .update(table)
         .set(expr)
@@ -1118,7 +1251,12 @@ export abstract class DatabaseRepository {
     }
 
     const updateManyById = (expr: SqlExpr, ids: (string | number)[]) => {
-      return updateMany(expr, IN(sqlField`id`, ids))
+      const filter = ids.slice()
+      while (filter.length < 128) {
+        filter.push("")
+      }
+
+      return updateMany(expr, IN(sqlField`id`, filter))
     }
 
     const updateOneById = (expr: SqlExpr, id: string | number) => {
@@ -1144,12 +1282,12 @@ export abstract class DatabaseRepository {
     }
 
     return {
-      count,
+      count: countWithDataLoader,
       findId,
-      findMany,
+      findMany: findManyWithDataLoader,
       findManyById,
-      findOne,
-      findOneById: findOneByIdWithDataloader,
+      findOne: findOneWithDataLoader,
+      findOneById,
       exists,
       existsById,
       save,
@@ -1162,6 +1300,18 @@ export abstract class DatabaseRepository {
       updateOneById,
       update,
     }
+  }
+
+  private _tableAccessCache = new Map<string | SQLEntity<any>, ReturnType<DatabaseRepository["createTableAccess"]>>()
+
+  of<T extends Record<string, any> = Record<string, any>>(table: string | SQLEntity<T>) {
+    const tableAccess = this._tableAccessCache.get(table)
+    if (tableAccess) {
+      return tableAccess as typeof result
+    }
+
+    const result = this.createTableAccess<T>(table)
+    return result
   }
 
   private _inTransaction = false

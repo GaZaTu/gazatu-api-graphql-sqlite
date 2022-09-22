@@ -45,22 +45,16 @@ export const gqlPaginationArgs = {
 export type GraphQLPaginationArgs = InferedGraphQLFieldConfigArgumentMap<typeof gqlPaginationArgs>
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const findManyPaginated = async <T extends Record<string, any>>(table: SQLEntity<T>, args: GraphQLPaginationArgs | null | undefined, selector: (args: { isCount: boolean }) => Selector) => {
-  const countQuery = selector({ isCount: true })
-  const dataQuery = selector({ isCount: false })
+export const findManyPaginated = async <T extends Record<string, any>>(query: Selector, args: GraphQLPaginationArgs | null | undefined, constructor: SQLEntity<T> | undefined) => {
+  const slice = await query
+    .offset(args?.offset)
+    .limit(args?.limit)
+    .findMany(constructor)
 
-  if (!dataQuery.data.offset) {
-    dataQuery
-      .offset(args?.offset)
-  }
-
-  if (!dataQuery.data.limit) {
-    dataQuery
-      .limit(args?.limit)
-  }
-
-  const count = await countQuery.count() ?? 0
-  const slice = await dataQuery.findMany(table)
+  const count = await query
+    .offset(undefined)
+    .limit(undefined)
+    .count() ?? 0
 
   return {
     slice,

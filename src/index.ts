@@ -15,10 +15,9 @@ void (async () => {
   const schemaAsTS = gqlToTs(schemaAsGQL)
   await writeFile(`${projectDir}/data/schema.gql.ts`, schemaAsTS)
 
-  await (async () => {
-    const db = await useDatabaseApi()
-    await db.exec("PRAGMA wal_checkpoint(PASSIVE)", [])
-  })()
+  await useDatabaseApi(async dbApi => {
+    await dbApi.exec("PRAGMA wal_checkpoint(PASSIVE)", [])
+  })
 
   await listen()
 })().then(console.log, console.error)

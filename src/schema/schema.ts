@@ -3,8 +3,8 @@ import { ParameterizedContext } from "koa"
 import { DatabaseRepository } from "../lib/querybuilder.js"
 import { userResolver } from "./misc/user.js"
 import { triviaCategoryResolver } from "./trivia/category.js"
+import { triviaExtensionsResolver } from "./trivia/extensions.js"
 import { triviaQuestionResolver } from "./trivia/question.js"
-import { stitchSchemas } from "@graphql-tools/stitch"
 import { triviaReportResolver } from "./trivia/report.js"
 
 export type SchemaContext = {
@@ -23,6 +23,7 @@ export type SchemaFields = {
   mutation?: Record<string, GraphQLFieldConfig<{}, SchemaContext, any>>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   subscription?: Record<string, GraphQLFieldConfig<{}, SchemaContext, any>>
+  extend?: (schema: GraphQLSchema) => GraphQLSchema
 }
 
 const buildSchema = (resolvers: SchemaFields[]) => {
@@ -35,7 +36,7 @@ const buildSchema = (resolvers: SchemaFields[]) => {
   const mutationFields = getFieldsAsArray("mutation")
   const subscriptionFields = getFieldsAsArray("subscription")
 
-  const schema = new GraphQLSchema({
+  let schema = new GraphQLSchema({
     query: queryFields.length ? new GraphQLObjectType({
       name: "Query",
       fields: Object.fromEntries(queryFields),
@@ -50,32 +51,21 @@ const buildSchema = (resolvers: SchemaFields[]) => {
     }) : undefined,
   })
 
+  for (const { extend } of resolvers) {
+    if (extend) {
+      schema = extend(schema)
+    }
+  }
+
   return schema
 }
 
-let schema = buildSchema([
+const schema = buildSchema([
   userResolver,
   triviaCategoryResolver,
   triviaQuestionResolver,
   triviaReportResolver,
+  triviaExtensionsResolver,
 ])
-
-schema = stitchSchemas({
-  subschemas: [schema],
-  typeDefs: `
-    extend type TriviaCategory {
-      questionsConnection: TriviaQuestionsConnection!
-    }
-
-    extend type TriviaQuestion {
-      reports: [TriviaReport!]!
-    }
-  `,
-  resolvers: {
-    TriviaCategory: {
-      questionsConnection: {},
-    },
-  },
-})
 
 export default schema

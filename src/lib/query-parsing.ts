@@ -38,3 +38,12 @@ export const qArray = (ctx: { query: ParsedUrlQuery }, func: (q: ParsedUrlQuery)
     .replace("]", "")
     .split(",")
 }
+
+export const qJson = (ctx: { query: ParsedUrlQuery }, func: (q: ParsedUrlQuery) => unknown) => {
+  const r = func(ctx.query)
+  if (r === undefined) {
+    return undefined
+  }
+
+  return JSON.parse(String(r))
+}

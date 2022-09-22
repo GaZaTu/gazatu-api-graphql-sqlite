@@ -1,23 +1,23 @@
 import Router from "@koa/router"
 import createKoaSSEStream from "../../lib/createKoaSSEStream.js"
 import { qArray, qBoolean, qNumber, qString } from "../../lib/query-parsing.js"
-import { executeGraphQLInTransaction } from "../graphqlRouter.js"
+import { executeGraphQLWithDatabase } from "../graphqlRouter.js"
 import { databaseUpdateHooks } from "../useDatabaseApi.js"
 import { TriviaQuestion } from "./question.js"
 
-export const triviaSSEOTPSet = new Set<string>()
+export const triviaEventsOTPSet = new Set<string>()
 
 const triviaRouter = new Router({ prefix: "/trivia" })
 
 export default triviaRouter
 
-triviaRouter.get("/sse", async ctx => {
+triviaRouter.get("/events", async ctx => {
   const otp = qString(ctx, q => q.otp) ?? ""
-  if (!triviaSSEOTPSet.has(otp)) {
+  if (!triviaEventsOTPSet.has(otp)) {
     throw ctx.throw(401, new Error("Invalid OTP"))
   }
 
-  triviaSSEOTPSet.delete(otp)
+  triviaEventsOTPSet.delete(otp)
 
   const stream = createKoaSSEStream(ctx)
 
@@ -35,12 +35,6 @@ triviaRouter.get("/sse", async ctx => {
   })
 })
 
-type Query = {
-  triviaQuestionsConnection?: {
-    slice: TriviaQuestion[]
-  }
-}
-
 triviaRouter.get("/questions", async ctx => {
   const limit = qNumber(ctx, q => q.limit ?? q.count) ?? 10
   const verified = qBoolean(ctx, q => q.verified) ?? true
@@ -50,7 +44,13 @@ triviaRouter.get("/questions", async ctx => {
   const exclude = qArray(ctx, q => q.exclude ?? q.exc)
   const submitters = qArray(ctx, q => q.submitters)
 
-  const result = await executeGraphQLInTransaction<Query>({
+  type Query = {
+    triviaQuestionsConnection?: {
+      slice: TriviaQuestion[]
+    }
+  }
+
+  const result = await executeGraphQLWithDatabase<Query>({
     query: `
       query ($args: TriviaQuestionsConnectionArgs) {
         triviaQuestionsConnection(args: $args) {

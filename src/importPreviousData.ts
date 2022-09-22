@@ -51,48 +51,50 @@ void (async () => {
   })
   const questions = await response.json() as TriviaQuestion[]
 
-  const dbApi = await useDatabaseApi()
-
   try {
-    await dbApi.transaction(async () => {
-      await dbApi.remove()
-        .from(TriviaQuestionSQL)
-      await dbApi.remove()
-        .from(TriviaCategorySQL)
+    await useDatabaseApi(async dbApi => {
+      await dbApi.transaction(async () => {
+        await dbApi.remove()
+          .from(TriviaQuestionSQL)
+        await dbApi.remove()
+          .from(TriviaCategorySQL)
 
-      for (const question of questions) {
-        question.category = categoryAliases[question.category] ?? question.category
+        for (const question of questions) {
+          question.category = categoryAliases[question.category] ?? question.category
 
-        let categoryId = undefined as string | undefined
-        try {
-          const [{ id }] = await dbApi.of(TriviaCategorySQL)
+          let categoryId = undefined as string | undefined
+          try {
+            const [{ id }] = await dbApi.of(TriviaCategorySQL)
+              .save({
+                name: question.category,
+                verified: true,
+                disabled: false,
+              })
+            categoryId = id!
+          } catch {
+            const [{ id }] = await dbApi.of(TriviaCategorySQL)
+              .findMany(sql`${TriviaCategorySQL.schema.name} = ${question.category}`)
+            categoryId = id!
+          }
+
+          const [{ id }] = await dbApi.of(TriviaQuestionSQL)
             .save({
-              name: question.category,
+              question: question.question,
+              answer: question.answer,
+              hint1: question.hint1 || null,
+              hint2: question.hint2 || null,
+              submitter: question.submitter || null,
+              verified: true,
+              disabled: false,
             })
-          categoryId = id!
-        } catch {
-          const [{ id }] = await dbApi.of(TriviaCategorySQL)
-            .findMany(sql`${TriviaCategorySQL.schema.name} = ${question.category}`)
-          categoryId = id!
+
+          await dbApi.of(N2MTriviaQuestionTriviaCategorySQL)
+            .save({
+              questionId: id!,
+              categoryId: categoryId!,
+            })
         }
-
-        const [{ id }] = await dbApi.of(TriviaQuestionSQL)
-          .save({
-            question: question.question,
-            answer: question.answer,
-            hint1: question.hint1 || null,
-            hint2: question.hint2 || null,
-            submitter: question.submitter || null,
-            verified: true,
-            disabled: false,
-          })
-
-        await dbApi.of(N2MTriviaQuestionTriviaCategorySQL)
-          .save({
-            questionId: id!,
-            categoryId: categoryId!,
-          })
-      }
+      })
     })
   } finally {
     databaseConnections.clear()
