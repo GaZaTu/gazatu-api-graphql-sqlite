@@ -43,7 +43,7 @@ export type TriviaCategory = Infer<typeof TriviaCategorySchema>
 
 export const triviaCategoryResolver: SchemaFields = {
   query: {
-    triviaCategory: gqlResolver({
+    triviaCategoryById: gqlResolver({
       type: gqlNullable(gqlType(TriviaCategoryGraphQL)),
       args: {
         id: {
@@ -59,7 +59,7 @@ export const triviaCategoryResolver: SchemaFields = {
         complexity: Complexity.SIMPLE_QUERY,
       },
     }),
-    triviaCategories: gqlResolver({
+    triviaCategoryList: gqlResolver({
       type: gqlArray(gqlType(TriviaCategoryGraphQL)),
       resolve: async (self, args, ctx) => {
         const result = await ctx.db.of(TriviaCategorySQL)
@@ -72,7 +72,7 @@ export const triviaCategoryResolver: SchemaFields = {
     }),
   },
   mutation: {
-    saveTriviaCategory: gqlResolver({
+    triviaCategorySave: gqlResolver({
       type: gqlType(TriviaCategoryGraphQL),
       args: {
         input: {
@@ -95,7 +95,7 @@ export const triviaCategoryResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    verifyTriviaCategories: gqlResolver({
+    triviaCategoryVerifyByIds: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {
@@ -113,7 +113,7 @@ export const triviaCategoryResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    removeTriviaCategories: gqlResolver({
+    triviaCategoryRemoveByIds: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {
@@ -122,8 +122,6 @@ export const triviaCategoryResolver: SchemaFields = {
       },
       resolve: async (self, { ids }, ctx) => {
         await assertAuth(ctx, ["trivia/admin"])
-
-        await new Promise(resolve => setTimeout(resolve, 10000))
 
         await ctx.db.of(TriviaCategorySQL)
           .removeManyById(ids)

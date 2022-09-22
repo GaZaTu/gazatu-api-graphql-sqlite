@@ -108,13 +108,14 @@ export const getCompiledGraphQLQuery = <T>(request: Omit<GraphQLRequest, "variab
   return result
 }
 
-export const executeGraphQLWithDatabase = async <T>(request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }, options?: { throwErrors?: boolean, ignoreComplexity?: boolean }) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const executeGraphQLWithDatabase = async <T = any>(request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }, options?: { db?: SchemaContext["db"], throwErrors?: boolean, ignoreComplexity?: boolean }) => {
   const execute = getCompiledGraphQLQuery<T>(request)
 
-  return await useDatabaseApi(async dbApi => {
+  const handler = async (db: SchemaContext["db"]) => {
     const context = {
       ...request.context,
-      db: dbApi,
+      db,
       cache: {},
     }
 
@@ -129,7 +130,13 @@ export const executeGraphQLWithDatabase = async <T>(request: GraphQLRequest & { 
     }
 
     return result
-  })
+  }
+
+  if (options?.db) {
+    return await handler(options.db)
+  } else {
+    return await useDatabaseApi(handler)
+  }
 }
 
 export const handleGraphQLRequest = async (ctx: SchemaContext["http"], requestObject: unknown) => {

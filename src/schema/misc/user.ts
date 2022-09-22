@@ -175,8 +175,8 @@ const getDefaultUserRoleMapping = () => {
 }
 
 export const userResolver: SchemaFields = {
-  mutation: {
-    authenticate: gqlResolver({
+  query: {
+    userAuthenticate: gqlResolver({
       type: gqlType(AuthGraphQL),
       args: {
         username: {
@@ -191,7 +191,9 @@ export const userResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    registerUser: gqlResolver({
+  },
+  mutation: {
+    userCreate: gqlResolver({
       type: gqlType(AuthGraphQL),
       args: {
         username: {

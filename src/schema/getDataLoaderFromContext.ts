@@ -27,18 +27,19 @@ export default getDataLoaderFromContext
 export const getN2MDataLoaderFromContext = <N2M, S extends { id?: any }>({ cache, db }: Pick<SchemaContext, "cache" | "db">, symbol: symbol, childTable: SQLEntity<S>, n2mTable: SQLEntity<N2M>, parentId: keyof N2M, childId: keyof N2M) => {
   let dataloader = cache[symbol] as DataLoader<string, S[]> | undefined
   if (!dataloader) {
+    const maxBatchSize = 128
     const { query } = sqlQuery`
 SELECT
   ${childTable}.*,
   ${n2mTable.schema[parentId]}
 FROM ${n2mTable}
 JOIN ${childTable} ON ${childTable.schema.id} = ${n2mTable.schema[childId]}
-WHERE ${n2mTable.schema[parentId]} IN ${[...Array(128).keys()]}
+WHERE ${n2mTable.schema[parentId]} IN ${[...Array(maxBatchSize).keys()]}
     `
 
     dataloader = new DataLoader(async ids => {
       const filter = ids.slice()
-      while (filter.length < 128) {
+      while (filter.length < maxBatchSize) {
         filter.push("")
       }
 
@@ -49,7 +50,7 @@ WHERE ${n2mTable.schema[parentId]} IN ${[...Array(128).keys()]}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return n2m.filter(s => (s as any)[parentId] === id)
         })
-    }, { maxBatchSize: 128 })
+    }, { maxBatchSize })
     cache[symbol] = dataloader
   }
 

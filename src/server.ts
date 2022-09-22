@@ -12,6 +12,10 @@ import graphqlRouter from "./schema/graphqlRouter.js"
 import triviaRouter from "./schema/trivia/triviaRouter.js"
 
 const getHost = () => {
+  if (process.env.NODE_ENV === "test") {
+    return "127.0.0.1"
+  }
+
   if (!config.has("host")) {
     return "127.0.0.1"
   }
@@ -20,6 +24,10 @@ const getHost = () => {
 }
 
 const getPort = () => {
+  if (process.env.NODE_ENV === "test") {
+    return 4343
+  }
+
   if (!config.has("port")) {
     return 3434
   }

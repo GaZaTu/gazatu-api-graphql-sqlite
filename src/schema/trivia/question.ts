@@ -87,7 +87,7 @@ export const [
 
 export const triviaQuestionResolver: SchemaFields = {
   query: {
-    triviaQuestion: gqlResolver({
+    triviaQuestionById: gqlResolver({
       type: gqlNullable(gqlType(TriviaQuestionGraphQL)),
       args: {
         id: {
@@ -103,9 +103,9 @@ export const triviaQuestionResolver: SchemaFields = {
         complexity: Complexity.SIMPLE_QUERY,
       },
     }),
-    triviaQuestionsConnection: gqlResolver({
+    triviaQuestionListConnection: gqlResolver({
       type: gqlPagination(gqlType(TriviaQuestionGraphQL)),
-      args: gqlArgsInput("TriviaQuestionsConnectionArgs", {
+      args: gqlArgsInput("TriviaQuestionListConnectionArgs", {
         ...gqlPaginationArgs,
         ...gqlSortArgs,
         ...gqlSearchArgs,
@@ -191,7 +191,7 @@ export const triviaQuestionResolver: SchemaFields = {
     }),
   },
   mutation: {
-    saveTriviaQuestion: gqlResolver({
+    triviaQuestionSave: gqlResolver({
       type: gqlType(TriviaQuestionGraphQL),
       args: {
         input: {
@@ -234,7 +234,7 @@ export const triviaQuestionResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    verifyTriviaQuestions: gqlResolver({
+    triviaQuestionVerifyByIds: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {
@@ -252,7 +252,7 @@ export const triviaQuestionResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    disableTriviaQuestions: gqlResolver({
+    triviaQuestionDisableByIds: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {

@@ -2,7 +2,7 @@
 
 import crypto from "node:crypto"
 import { mkdir, readdir, readFile } from "node:fs/promises"
-import sqlite3 from "sqlite3"
+import sqlite3, { Database } from "sqlite3"
 import { projectDir } from "../lib/moduleDir.js"
 import { SQLite3Repository } from "../lib/querybuilder-sqlite.js"
 import { createCreateFTSSyncTriggersScript } from "../lib/sqlite-createftssynctriggers.js"
@@ -124,7 +124,7 @@ const databaseAfterOpen = async (database: sqlite3.Database) => {
 
     const script = await readFile(`${migrationsDir}/${scriptPath}`, { encoding: "utf-8" })
 
-    console.log(`updating database from v${version} to v${scriptVersion}`)
+    // console.log(`updating database from v${version} to v${scriptVersion}`)
 
     await exec(database, "BEGIN TRANSACTION")
     try {
@@ -154,7 +154,7 @@ const open = async (options = { trace: true }) => {
   const file = `${projectDir}/data/database.sqlite3`
   const mode = sqlite3.OPEN_CREATE | sqlite3.OPEN_READWRITE | sqlite3.OPEN_URI
 
-  const database = new sqlite3.Database(file, mode)
+  const database = new sqlite3.Database((process.env.NODE_ENV === "test") ? ":memory:" : file, mode)
   const close = database.close.bind(database)
 
   await new Promise<void>((resolve, reject) => {
@@ -167,13 +167,13 @@ const open = async (options = { trace: true }) => {
   })
 
   if (options.trace && process.env.NODE_ENV !== "production") {
-    database.on("trace", sql => {
-      if (sql.startsWith("PRAGMA") || sql.startsWith("--")) {
-        return
-      }
+    // database.on("trace", sql => {
+    //   if (sql.startsWith("PRAGMA") || sql.startsWith("--")) {
+    //     return
+    //   }
 
-      console.log(`${sql};`)
-    })
+    //   console.log(`${sql};`)
+    // })
   }
 
   return Object.assign(database, {
@@ -193,7 +193,7 @@ const open = async (options = { trace: true }) => {
   })
 }
 
-const createCachedAll = (db: sqlite3.Database) => {
+export const createCachedAll = (db: sqlite3.Database) => {
   const statementCache = new Map<string, sqlite3.Statement>()
 
   const getStatement = async (query: string) => {
@@ -279,15 +279,18 @@ Object.assign(databaseConnections, {
 const connectionsDelete = databaseConnections.delete.bind(databaseConnections)
 Object.assign(databaseConnections, {
   delete: (value: DatabaseConnection) => {
+    clearTimeout(value.timeoutId)
+
     void (async () => {
       await exec(value.db, "PRAGMA wal_checkpoint(PASSIVE)")
       await value.db.close()
-    })()
+    })().then(console.log, console.error)
 
     return connectionsDelete(value)
   },
   clear: () => {
     for (const connection of databaseConnections) {
+      connection.inUse = true
       databaseConnections.delete(connection)
     }
   },
@@ -318,7 +321,7 @@ Object.assign(databaseUpdateHooks, {
   },
 })
 
-const useDatabaseApi = async <T>(user: (dbApi: SQLite3Repository) => Promise<T>) => {
+const useDatabaseApi = async <T>(user: (dbApi: SQLite3Repository, db: Database) => Promise<T>) => {
   const use = async (connection: DatabaseConnection) => {
     connection.dbApi.clearCache()
 
@@ -326,7 +329,7 @@ const useDatabaseApi = async <T>(user: (dbApi: SQLite3Repository) => Promise<T>)
     clearTimeout(connection.timeoutId)
 
     try {
-      return await user(connection.dbApi)
+      return await user(connection.dbApi, connection.db)
     } finally {
       connection.timeoutId = setTimeout(() => databaseConnections.delete(connection), 1000 * 60 * 10) // 10 minutes
       connection.inUse = false

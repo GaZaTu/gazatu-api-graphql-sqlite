@@ -49,7 +49,7 @@ export type TriviaReport = Infer<typeof TriviaReportSchema>
 
 export const triviaReportResolver: SchemaFields = {
   query: {
-    triviaReport: gqlResolver({
+    triviaReportById: gqlResolver({
       type: gqlNullable(gqlType(TriviaReportGraphQL)),
       args: {
         id: {
@@ -68,7 +68,7 @@ export const triviaReportResolver: SchemaFields = {
         complexity: Complexity.SIMPLE_QUERY,
       },
     }),
-    triviaReports: gqlResolver({
+    triviaReportList: gqlResolver({
       type: gqlArray(gqlType(TriviaReportGraphQL)),
       args: {
         questionId: {
@@ -92,7 +92,7 @@ export const triviaReportResolver: SchemaFields = {
     }),
   },
   mutation: {
-    saveTriviaReport: gqlResolver({
+    triviaReportSave: gqlResolver({
       type: gqlType(TriviaReportGraphQL),
       args: {
         input: {
@@ -116,7 +116,7 @@ export const triviaReportResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    removeTriviaReports: gqlResolver({
+    triviaReportRemoveById: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {
@@ -134,7 +134,7 @@ export const triviaReportResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    removeTriviaReportsByQuestionId: gqlResolver({
+    triviaReportRemoveByQuestionId: gqlResolver({
       type: gqlVoid(),
       args: {
         questionId: {

@@ -8,7 +8,7 @@ export const gqlPagination = <T extends GraphQLObjectType>(ofType: GraphQLNonNul
   let existing = knownPaginationTypes.get(ofType)
   if (!existing) {
     existing = new GraphQLObjectType({
-      name: `${ofType.ofType.name}sConnection`,
+      name: `${ofType.ofType.name}ListConnection`,
       fields: {
         slice: {
           type: gqlArray(ofType),
