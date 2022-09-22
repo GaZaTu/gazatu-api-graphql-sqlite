@@ -41,7 +41,7 @@ export const applySortToQuery = (query: Selector, table: SQLEntity, args: GraphQ
     dir = "ASC",
   } = args.orderBy
 
-  if (table.schema[col as string]) {
+  if (!table.schema[col as string]) {
     throw new Error(`Sorting only allowed on ${table}`)
   }
 

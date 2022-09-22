@@ -1,12 +1,12 @@
 import { boolean, Infer, nullable, object, optional, size, string } from "superstruct"
-import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
+import gqlResolver, { gqlArray, gqlBoolean, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
 import { Complexity } from "../graphql-complexity.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import assertAuth from "../assertAuth.js"
 import assertInput from "../assertInput.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
-import { ASSIGN } from "../../lib/querybuilder.js"
+import { ASSIGN, sql } from "../../lib/querybuilder.js"
 
 export const TriviaCategorySchema = object({
   id: optional(nullable(string())),
@@ -61,9 +61,22 @@ export const triviaCategoryResolver: SchemaFields = {
     }),
     triviaCategoryList: gqlResolver({
       type: gqlArray(gqlType(TriviaCategoryGraphQL)),
+      args: {
+        verified: {
+          type: gqlNullable(gqlBoolean()),
+          defaultValue: null,
+        },
+        disabled: {
+          type: gqlNullable(gqlBoolean()),
+          defaultValue: false,
+        },
+      },
       resolve: async (self, args, ctx) => {
-        const result = await ctx.db.of(TriviaCategorySQL)
-          .findMany()
+        const result = await ctx.db
+          .select(TriviaCategorySQL)
+          .where((typeof args.verified === "boolean") && sql`${TriviaCategorySQL.schema.verified} = ${args.verified}`)
+          .where((typeof args.disabled === "boolean") && sql`${TriviaCategorySQL.schema.disabled} = ${args.disabled}`)
+          .findMany(TriviaCategorySQL)
         return result
       },
       extensions: {

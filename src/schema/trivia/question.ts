@@ -189,6 +189,23 @@ export const triviaQuestionResolver: SchemaFields = {
         complexity: Complexity.PAGINATION,
       },
     }),
+    triviaEventsOTP: gqlResolver({
+      type: gqlString(),
+      resolve: async (self, args, ctx) => {
+        await assertAuth(ctx, ["trivia/admin"])
+
+        const otp = ulid()
+
+        triviaEventsOTPSet.add(otp)
+        setTimeout(() => triviaEventsOTPSet.delete(otp), 5000)
+
+        return otp
+      },
+      description: "requires role: trivia/admin",
+      extensions: {
+        complexity: Complexity.MUTATION,
+      },
+    }),
   },
   mutation: {
     triviaQuestionSave: gqlResolver({
@@ -264,25 +281,6 @@ export const triviaQuestionResolver: SchemaFields = {
 
         await ctx.db.of(TriviaQuestionSQL)
           .updateManyById(ASSIGN(TriviaQuestionSQL.schema.disabled, true), ids)
-      },
-      description: "requires role: trivia/admin",
-      extensions: {
-        complexity: Complexity.MUTATION,
-      },
-    }),
-  },
-  subscription: {
-    triviaEventsOTP: gqlResolver({
-      type: gqlString(),
-      resolve: async (self, args, ctx) => {
-        await assertAuth(ctx, ["trivia/admin"])
-
-        const otp = ulid()
-
-        triviaEventsOTPSet.add(otp)
-        setTimeout(() => triviaEventsOTPSet.delete(otp), 10000)
-
-        return otp
       },
       description: "requires role: trivia/admin",
       extensions: {
