@@ -3,9 +3,7 @@ import createKoaSSEStream from "../../lib/createKoaSSEStream.js"
 import { qArray, qBoolean, qNumber, qString } from "../../lib/query-parsing.js"
 import { executeGraphQLWithDatabase } from "../graphqlRouter.js"
 import { databaseUpdateHooks } from "../useDatabaseApi.js"
-import { TriviaQuestion } from "./question.js"
-
-export const triviaEventsOTPSet = new Set<string>()
+import { triviaEventsOTPSet, TriviaQuestion } from "./question.js"
 
 const triviaRouter = new Router({ prefix: "/trivia" })
 
@@ -26,7 +24,7 @@ triviaRouter.get("/events", async ctx => {
       return
     }
 
-    stream.writeData({ type, table })
+    stream.sendEvent("", { type, table })
   }
 
   databaseUpdateHooks.add(listener)

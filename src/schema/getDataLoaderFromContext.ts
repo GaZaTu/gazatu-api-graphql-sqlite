@@ -23,7 +23,6 @@ const getDataLoaderFromContext = <V>({ cache }: Pick<SchemaContext, "cache">, sy
 
 export default getDataLoaderFromContext
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getN2MDataLoaderFromContext = <N2M, S extends { id?: any }>({ cache, db }: Pick<SchemaContext, "cache" | "db">, symbol: symbol, childTable: SQLEntity<S>, n2mTable: SQLEntity<N2M>, parentId: keyof N2M, childId: keyof N2M) => {
   let dataloader = cache[symbol] as DataLoader<string, S[]> | undefined
   if (!dataloader) {
@@ -47,7 +46,6 @@ WHERE ${n2mTable.schema[parentId]} IN ${[...Array(maxBatchSize).keys()]}
 
       return ids
         .map(id => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           return n2m.filter(s => (s as any)[parentId] === id)
         })
     }, { maxBatchSize })

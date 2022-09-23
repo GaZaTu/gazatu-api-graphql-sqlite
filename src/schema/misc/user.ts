@@ -20,7 +20,7 @@ export const UserRoleSchema = object({
 export const [
   UserRoleGraphQL,
   UserRoleGraphQLInput,
-] = superstructToGraphQL<SchemaContext>()(UserRoleSchema, {
+] = superstructToGraphQL(UserRoleSchema, {
   name: "UserRole",
   fields: {},
 })
@@ -54,13 +54,13 @@ export const resolveUserRolesForUser = async (self: User, ctx: Pick<SchemaContex
 export const [
   UserGraphQL,
   UserGraphQLInput,
-] = superstructToGraphQL<SchemaContext>()(UserSchema, {
+] = superstructToGraphQL(UserSchema, {
   name: "User",
   fields: {
-    password: { type: gqlUnset() },
+    password: gqlUnset(),
     roles: gqlResolver({
       type: gqlArray(gqlType(UserRoleGraphQL)),
-      resolve: (self, args, ctx) => {
+      resolve: (self, args, ctx: SchemaContext) => {
         return resolveUserRolesForUser(self, ctx)
       },
     }),
@@ -93,7 +93,7 @@ export const AuthSchema = object({
 
 export const [
   AuthGraphQL,
-] = superstructToGraphQL<SchemaContext>()(AuthSchema, {
+] = superstructToGraphQL(AuthSchema, {
   name: "Auth",
   fields: {},
 })

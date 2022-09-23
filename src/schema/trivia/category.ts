@@ -1,12 +1,12 @@
 import { boolean, Infer, nullable, object, optional, size, string } from "superstruct"
-import gqlResolver, { gqlArray, gqlBoolean, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
-import { Complexity } from "../graphql-complexity.js"
+import gqlResolver, { gqlArgsInput, gqlArray, gqlBoolean, gqlNullable, gqlString, gqlType, gqlVoid } from "../../lib/gqlResolver.js"
+import { ASSIGN, sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import assertAuth from "../assertAuth.js"
 import assertInput from "../assertInput.js"
-import type { SchemaContext, SchemaFields } from "../schema.js"
-import { ASSIGN, sql } from "../../lib/querybuilder.js"
+import { Complexity } from "../graphql-complexity.js"
+import type { SchemaFields } from "../schema.js"
 
 export const TriviaCategorySchema = object({
   id: optional(nullable(string())),
@@ -22,15 +22,15 @@ export const TriviaCategorySchema = object({
 export const [
   TriviaCategoryGraphQL,
   TriviaCategoryGraphQLInput,
-] = superstructToGraphQL<SchemaContext>()(TriviaCategorySchema, {
+] = superstructToGraphQL(TriviaCategorySchema, {
   name: "TriviaCategory",
   fields: {},
-  inputFields: {
-    verified: { type: gqlUnset() },
-    disabled: { type: gqlUnset() },
-    createdAt: { type: gqlUnset() },
-    updatedAt: { type: gqlUnset() },
-  },
+  inputUnset: [
+    "verified",
+    "disabled",
+    "createdAt",
+    "updatedAt",
+  ],
 })
 
 export const [
@@ -61,7 +61,7 @@ export const triviaCategoryResolver: SchemaFields = {
     }),
     triviaCategoryList: gqlResolver({
       type: gqlArray(gqlType(TriviaCategoryGraphQL)),
-      args: {
+      args: gqlArgsInput("TriviaCategoryListArgs", {
         verified: {
           type: gqlNullable(gqlBoolean()),
           defaultValue: null,
@@ -70,12 +70,12 @@ export const triviaCategoryResolver: SchemaFields = {
           type: gqlNullable(gqlBoolean()),
           defaultValue: false,
         },
-      },
-      resolve: async (self, args, ctx) => {
+      }),
+      resolve: async (self, { args }, ctx) => {
         const result = await ctx.db
           .select(TriviaCategorySQL)
-          .where((typeof args.verified === "boolean") && sql`${TriviaCategorySQL.schema.verified} = ${args.verified}`)
-          .where((typeof args.disabled === "boolean") && sql`${TriviaCategorySQL.schema.disabled} = ${args.disabled}`)
+          .where((typeof args?.verified === "boolean") && sql`${TriviaCategorySQL.schema.verified} = ${args.verified}`)
+          .where((typeof args?.disabled === "boolean") && sql`${TriviaCategorySQL.schema.disabled} = ${args.disabled}`)
           .findMany(TriviaCategorySQL)
         return result
       },

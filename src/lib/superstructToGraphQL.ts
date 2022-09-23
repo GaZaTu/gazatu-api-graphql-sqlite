@@ -1,19 +1,15 @@
 import { GraphQLBoolean, GraphQLFieldConfig, GraphQLFieldConfigMap, GraphQLFloat, GraphQLID, GraphQLInputFieldConfig, GraphQLInputFieldConfigMap, GraphQLInputObjectType, GraphQLInputObjectTypeConfig, GraphQLInt, GraphQLInterfaceType, GraphQLInterfaceTypeConfig, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLObjectTypeConfig, GraphQLString, GraphQLType } from "graphql"
 import { Struct } from "superstruct"
-import { gqlUnset } from "./gqlResolver.js"
+import { gqlUnset, GraphQLUnset } from "./gqlResolver.js"
 import superstructIsRequired from "./superstructIsRequired.js"
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mappingInput = new Map<Struct<any, any>, GraphQLType>()
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mappingOutput = new Map<Struct<any, any>, GraphQLType>()
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function superstructToGraphQLScalar<T, S>(kind: "input" | "output", struct: Struct<T, S>): readonly [any, T | undefined] {
   const graphqlType = (() => {
     const existing = (kind === "input" ? mappingInput : mappingOutput).get(struct)
     if (existing) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return existing as any
     }
 
@@ -24,7 +20,6 @@ export function superstructToGraphQLScalar<T, S>(kind: "input" | "output", struc
       case "number": return GraphQLFloat
       case "boolean": return GraphQLBoolean
       case "array": {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const [childType] = superstructToGraphQLScalar(kind, struct.schema as any)
         return new GraphQLList(childType)
       }
@@ -49,10 +44,8 @@ export function superstructToGraphQLType<T, S, C>(Type: (typeof GraphQLObjectTyp
   const kind = (Type === GraphQLInputObjectType) ? "input" : "output"
 
   const graphqlType = new Type({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...(config as any),
     fields: () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const fields = {} as (Record<string, GraphQLFieldConfig<any, any, any> | GraphQLInputFieldConfig>)
 
       if (struct.schema) {
@@ -76,7 +69,7 @@ export function superstructToGraphQLType<T, S, C>(Type: (typeof GraphQLObjectTyp
 
       return Object.entries(fields)
         .reduce((o, [fieldName, fieldConfig]) => {
-          if (fieldConfig.type !== gqlUnset()) {
+          if (fieldConfig.type !== GraphQLUnset) {
             o[fieldName] = fieldConfig as GraphQLInputFieldConfig
           }
 
@@ -92,40 +85,40 @@ export function superstructToGraphQLType<T, S, C>(Type: (typeof GraphQLObjectTyp
   })
 }
 
-function superstructToGraphQL<C>() {
-  function superstructToGraphQL<T, S>(struct: Struct<T, S>, config: GraphQLObjectTypeConfig<T, C> & { inputFields?: GraphQLInputFieldConfigMap }) {
-    const ObjectType = superstructToGraphQLType(GraphQLObjectType, struct, {
-      ...config,
-    })
+function superstructToGraphQL<T, S>(struct: Struct<T, S>, config: GraphQLObjectTypeConfig<T, any> & { inputFields?: GraphQLInputFieldConfigMap, inputUnset?: (keyof T)[] }) {
+  const ObjectType = superstructToGraphQLType(GraphQLObjectType, struct, {
+    ...config,
+  })
 
-    const InputType = superstructToGraphQLType(GraphQLInputObjectType, struct, {
-      name: `${config.name}Input`,
-      fields: () => {
-        const fields = {} as GraphQLFieldConfigMap<unknown, unknown>
+  const InputType = superstructToGraphQLType(GraphQLInputObjectType, struct, {
+    name: `${config.name}Input`,
+    fields: () => {
+      const fields = {} as GraphQLFieldConfigMap<unknown, unknown>
 
-        if (typeof config.fields === "function") {
-          Object.assign(fields, config.fields())
-        } else {
-          Object.assign(fields, config.fields)
-        }
+      if (typeof config.fields === "function") {
+        Object.assign(fields, config.fields())
+      } else {
+        Object.assign(fields, config.fields)
+      }
 
-        Object.assign(fields, config.inputFields)
+      Object.assign(fields, config.inputFields)
 
-        return Object.entries(fields)
-          .reduce((o, [fieldName, fieldConfig]) => {
-            if (!fieldConfig.resolve) {
-              o[fieldName] = fieldConfig as GraphQLInputFieldConfig
-            }
+      Object.assign(fields, Object.fromEntries(
+        config.inputUnset?.map(k => [k, gqlUnset()] as const) ?? []
+      ))
 
-            return o
-          }, {} as GraphQLInputFieldConfigMap)
-      },
-    })
+      return Object.entries(fields)
+        .reduce((o, [fieldName, fieldConfig]) => {
+          if (!fieldConfig.resolve) {
+            o[fieldName] = fieldConfig as GraphQLInputFieldConfig
+          }
 
-    return [ObjectType, InputType] as const
-  }
+          return o
+        }, {} as GraphQLInputFieldConfigMap)
+    },
+  })
 
-  return superstructToGraphQL
+  return [ObjectType, InputType] as const
 }
 
 export default superstructToGraphQL

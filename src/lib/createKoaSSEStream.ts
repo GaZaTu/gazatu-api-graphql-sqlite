@@ -1,10 +1,10 @@
-import { DefaultContext, DefaultState, ParameterizedContext } from "koa"
+import { ParameterizedContext } from "koa"
 import { PassThrough } from "stream"
 
-const createKoaSSEStream = (ctx: ParameterizedContext<DefaultState, DefaultContext>) => {
+const createKoaSSEStream = <S, C>(ctx: ParameterizedContext<S, C>) => {
   ctx.request.socket.setTimeout(0)
-  ctx.req.socket.setNoDelay(true)
-  ctx.req.socket.setKeepAlive(true)
+  ctx.request.socket.setNoDelay(true)
+  ctx.request.socket.setKeepAlive(true)
 
   ctx.set({
     "Content-Type": "text/event-stream",
@@ -14,10 +14,10 @@ const createKoaSSEStream = (ctx: ParameterizedContext<DefaultState, DefaultConte
   })
 
   const stream = new PassThrough()
-  stream.write("\n\n")
+  stream.write(":ping")
 
   const intervalId = setInterval(() => {
-    stream.write("\n\n")
+    stream.write(":ping")
   }, 45000)
 
   stream.on("close", () => {
@@ -28,8 +28,12 @@ const createKoaSSEStream = (ctx: ParameterizedContext<DefaultState, DefaultConte
   ctx.body = stream
 
   return Object.assign(stream, {
-    writeData: (object: unknown) => {
-      stream.write(`data: ${JSON.stringify(object)}\n\n`)
+    sendEvent: (event: string | undefined, object: unknown) => {
+      return new Promise<void>((resolve, reject) => {
+        stream.write(`${event ? `event: ${event}\n` : ""}data: ${JSON.stringify(object)}\n\n`, err => {
+          err ? reject(err) : resolve()
+        })
+      })
     },
   })
 }

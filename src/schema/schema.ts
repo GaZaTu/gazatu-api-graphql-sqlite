@@ -11,17 +11,13 @@ export type SchemaContext = {
   http: ParameterizedContext
   db: DatabaseRepository
   cache: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string | symbol]: any
   }
 }
 
 export type SchemaFields = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query?: Record<string, GraphQLFieldConfig<{}, SchemaContext, any>>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mutation?: Record<string, GraphQLFieldConfig<{}, SchemaContext, any>>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   subscription?: Record<string, GraphQLFieldConfig<{}, SchemaContext, any>>
   extend?: (schema: GraphQLSchema) => GraphQLSchema
 }

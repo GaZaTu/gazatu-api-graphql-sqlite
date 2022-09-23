@@ -1,6 +1,3 @@
-/* eslint-disable no-empty */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { ulid } from "ulid"
 import { DatabaseRepository, Deleter, Inserter, QueryBuilderData, QueryBuilderUpsertMode, Selector, SQLEntity, SqlExpr, SqlField, SqlOperator, Updater } from "./querybuilder.js"
 

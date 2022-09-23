@@ -1,8 +1,7 @@
 import { stitchSchemas } from "@graphql-tools/stitch"
-import { IFieldResolverOptions } from "@graphql-tools/utils"
-import { GraphQLArgument, GraphQLObjectType, GraphQLSchema } from "graphql"
+import { GraphQLArgument, GraphQLObjectType, GraphQLObjectTypeConfig, GraphQLSchema } from "graphql"
 
-const extendGraphQLType = <T>(schema: GraphQLSchema, toExtend: GraphQLObjectType<T>, fields: Record<string, IFieldResolverOptions<T>>) => {
+const extendGraphQLType = <T>(schema: GraphQLSchema, toExtend: GraphQLObjectType<T>, fields: GraphQLObjectTypeConfig<T, any>["fields"]) => {
   const argsToString = (args: GraphQLArgument[] | undefined) => {
     if (!args?.length) {
       return ""

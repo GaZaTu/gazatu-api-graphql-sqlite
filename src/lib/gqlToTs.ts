@@ -15,7 +15,6 @@ const unwrapNullableTsType = (type: ts.TypeNode) => {
 }
 
 const gqlTypeNameToTsTypeName = (typeName: string): string => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const map: any = {
     "String": "string",
     "Float": "number",

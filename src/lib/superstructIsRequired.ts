@@ -11,7 +11,6 @@ const superstructIsRequired = <T, S>(validator: Struct<T, S>, path = "") => {
         return s.schema
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (s.schema as Record<string, any>)[p]
     }, validator)
   if (!struct) {

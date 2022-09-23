@@ -4,15 +4,15 @@ import gqlResolver, { gqlArgsInput, gqlArray, gqlBoolean, gqlNullable, gqlString
 import { ASSIGN, sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
-import assertAuth from "../assertAuth.js"
+import assertAuth, { currentUser } from "../assertAuth.js"
 import assertInput from "../assertInput.js"
 import { getN2MDataLoaderFromContext } from "../getDataLoaderFromContext.js"
 import { Complexity } from "../graphql-complexity.js"
+import { UserGraphQL, UserSQL } from "../misc/user.js"
 import { findManyPaginated, gqlPagination, gqlPaginationArgs } from "../pagination.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
 import { applySearchToQuery, applySortToQuery, gqlSearchArgs, gqlSortArgs } from "../searching.js"
 import { TriviaCategoryGraphQL, TriviaCategorySchema, TriviaCategorySQL } from "./category.js"
-import { triviaEventsOTPSet } from "./triviaRouter.js"
 
 const triviaQuestionCategoriesDataLoader = Symbol()
 
@@ -28,17 +28,18 @@ export const TriviaQuestionSchema = object({
   disabled: optional(nullable(boolean())),
   createdAt: optional(nullable(string())),
   updatedAt: optional(nullable(string())),
+  updatedByUserId: optional(nullable(string())),
 })
 
 export const [
   TriviaQuestionGraphQL,
   TriviaQuestionGraphQLInput,
-] = superstructToGraphQL<SchemaContext>()(TriviaQuestionSchema, {
+] = superstructToGraphQL(TriviaQuestionSchema, {
   name: "TriviaQuestion",
   fields: {
     categories: gqlResolver({
       type: gqlArray(gqlType(TriviaCategoryGraphQL)),
-      resolve: async (self, args, ctx) => {
+      resolve: async (self, args, ctx: SchemaContext) => {
         const dataloader = getN2MDataLoaderFromContext(ctx, triviaQuestionCategoriesDataLoader, TriviaCategorySQL, N2MTriviaQuestionTriviaCategorySQL, "questionId", "categoryId")
 
         const result = await dataloader.load(self.id!)
@@ -48,13 +49,24 @@ export const [
         complexity: Complexity.VIRTUAL_FIELD,
       },
     }),
+    updatedByUserId: gqlUnset(),
+    updatedBy: gqlResolver({
+      type: gqlNullable(gqlType(UserGraphQL)),
+      resolve: async (self, args, ctx: SchemaContext) => {
+        await assertAuth(ctx, ["admin"])
+
+        const result = await ctx.db.of(UserSQL)
+          .findOneById(self.updatedByUserId)
+        return result
+      },
+    }),
   },
-  inputFields: {
-    verified: { type: gqlUnset() },
-    disabled: { type: gqlUnset() },
-    createdAt: { type: gqlUnset() },
-    updatedAt: { type: gqlUnset() },
-  },
+  inputUnset: [
+    "verified",
+    "disabled",
+    "createdAt",
+    "updatedAt",
+  ],
 })
 
 export const [
@@ -216,6 +228,8 @@ export const triviaQuestionResolver: SchemaFields = {
         },
       },
       resolve: async (self, { input: _input }, ctx) => {
+        const user = await currentUser(ctx)
+
         if (_input.id) {
           await assertAuth(ctx, ["trivia/admin"])
         }
@@ -228,7 +242,11 @@ export const triviaQuestionResolver: SchemaFields = {
         } = _input
 
         const [result] = await ctx.db.of(TriviaQuestionSQL)
-          .save(input)
+          .save({
+            ...input,
+            updatedAt: new Date().toISOString(),
+            updatedByUserId: user?.id,
+          })
 
         await ctx.db.of(N2MTriviaQuestionTriviaCategorySQL)
           .removeMany(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.questionId} = ${result.id}`)
@@ -240,9 +258,6 @@ export const triviaQuestionResolver: SchemaFields = {
               categoryId: category.id!,
             })
         }
-
-        await ctx.db.of(TriviaQuestionSQL)
-          .save(result)
 
         return result
       },
@@ -289,3 +304,5 @@ export const triviaQuestionResolver: SchemaFields = {
     }),
   },
 }
+
+export const triviaEventsOTPSet = new Set<string>()

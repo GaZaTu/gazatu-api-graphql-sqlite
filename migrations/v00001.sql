@@ -19,7 +19,7 @@ CREATE TABLE "BlogEntry" (
   "title" VARCHAR(256) NOT NULL,
   "message" TEXT,
   "imageMimeType" VARCHAR(128),
-  "imageFileExtension" VARCHAR(128),
+  "imageFileExtension" VARCHAR(32),
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE ("story", "title"),
@@ -160,6 +160,8 @@ CREATE TABLE "N2M_TriviaQuestion_TriviaCategory" (
 
 CREATE INDEX "idx_N2M_TriviaQuestion_TriviaCategory_questionId" ON "N2M_TriviaQuestion_TriviaCategory" ("questionId");
 CREATE INDEX "idx_N2M_TriviaQuestion_TriviaCategory_categoryId" ON "N2M_TriviaQuestion_TriviaCategory" ("categoryId");
+
+!!CREATE_FTS_SYNC_TRIGGERS_N2M('TriviaQuestion', 'TriviaQuestionFTS', 'N2M_TriviaQuestion_TriviaCategory', 'id', 'questionId');
 -- END N2M_TriviaQuestion_TriviaCategory --
 
 -- BEGIN TriviaReport --

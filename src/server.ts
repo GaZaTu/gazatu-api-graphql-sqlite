@@ -11,7 +11,7 @@ import logger from "koa-logger"
 import graphqlRouter from "./schema/graphqlRouter.js"
 import triviaRouter from "./schema/trivia/triviaRouter.js"
 
-const getHost = () => {
+export const getHost = () => {
   if (process.env.NODE_ENV === "test") {
     return "127.0.0.1"
   }
@@ -23,7 +23,7 @@ const getHost = () => {
   return config.get("host") as string
 }
 
-const getPort = () => {
+export const getPort = () => {
   if (process.env.NODE_ENV === "test") {
     return 4343
   }
@@ -56,7 +56,6 @@ const getHttpsConfig = () => {
   return httpsConfig
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const createKoa = (middlewares: Koa.Middleware<any, any>[]) => {
   const koa = new Koa({
     proxy: true,
@@ -71,7 +70,6 @@ export const createKoa = (middlewares: Koa.Middleware<any, any>[]) => {
     format: err => JSON.stringify({
       name: err.name,
       message: err.message,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       type: (err as any).type,
       status: err.status,
       stack: (process.env.NODE_ENV !== "production") ? err.stack : undefined,

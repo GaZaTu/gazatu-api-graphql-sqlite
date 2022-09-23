@@ -1,11 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import crypto from "node:crypto"
 import { mkdir, readdir, readFile } from "node:fs/promises"
 import sqlite3, { Database } from "sqlite3"
 import { projectDir } from "../lib/moduleDir.js"
 import { SQLite3Repository } from "../lib/querybuilder-sqlite.js"
-import { createCreateFTSSyncTriggersScript } from "../lib/sqlite-createftssynctriggers.js"
+import { createCreateFTSSyncTriggersN2MScript, createCreateFTSSyncTriggersScript } from "../lib/sqlite-createftssynctriggers.js"
 import { createCreateISOTimestampTriggersScript } from "../lib/sqlite-createisotimestamptriggers.js"
 
 const get = (database: sqlite3.Database, sql: string, params?: any[]) =>
@@ -61,11 +59,18 @@ const setDatabaseVersion = async (database?: sqlite3.Database, version = 0) => {
 const expandMacros = (script: string) => {
   const regex = /^!!(\w+)\(([^)]*)\);$/gm
   const macros = {
-    "CREATE_FTS_SYNC_TRIGGERS": async (database: sqlite3.Database, [srcTable, ftsTable, ftsTableType]: string[]) => {
+    "CREATE_FTS_SYNC_TRIGGERS": async (database: sqlite3.Database, [srcTable, ftsTable]: string[]) => {
       const tableInfo = await all(database, `PRAGMA table_info('${ftsTable}')`)
       const fields = tableInfo.map(f => f.name)
 
-      const script = createCreateFTSSyncTriggersScript(srcTable, ftsTable, ftsTableType, fields)
+      const script = createCreateFTSSyncTriggersScript(srcTable, ftsTable, fields)
+      await exec(database, script)
+    },
+    "CREATE_FTS_SYNC_TRIGGERS_N2M": async (database: sqlite3.Database, [srcTable, ftsTable, n2mTable, srcId, n2mId]: string[]) => {
+      const tableInfo = await all(database, `PRAGMA table_info('${ftsTable}')`)
+      const fields = tableInfo.map(f => f.name)
+
+      const script = createCreateFTSSyncTriggersN2MScript(srcTable, ftsTable, n2mTable, srcId, n2mId, fields)
       await exec(database, script)
     },
     "CREATE_ISO_TIMESTAMP_TRIGGERS": async (database: sqlite3.Database, [table, column]: string[]) => {
@@ -168,7 +173,7 @@ const open = async (options = { trace: true }) => {
 
   if (options.trace && process.env.NODE_ENV !== "production") {
     // database.on("trace", sql => {
-    //   if (sql.startsWith("PRAGMA") || sql.startsWith("--")) {
+    //   if (sql.startsWith("--") || sql.startsWith("PRAGMA")) {
     //     return
     //   }
 

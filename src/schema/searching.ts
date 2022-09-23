@@ -49,7 +49,6 @@ export const applySortToQuery = (query: Selector, table: SQLEntity, args: GraphQ
     throw new Error(`Invalid SortDirection: ${dir}`)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   query.orderBy(new SqlField(col as string, table.entityName), dir as any)
 }
 

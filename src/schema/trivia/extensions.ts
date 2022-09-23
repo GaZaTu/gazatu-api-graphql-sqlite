@@ -22,7 +22,7 @@ export const TriviaCountsSchema = object({
 
 export const [
   TriviaCountsGraphQL,
-] = superstructToGraphQL<SchemaContext>()(TriviaCountsSchema, {
+] = superstructToGraphQL(TriviaCountsSchema, {
   name: "TriviaCounts",
   fields: {},
 })
@@ -44,7 +44,6 @@ export const triviaExtensionsResolver: SchemaFields = {
             [sql`SELECT count(*) FROM ${TriviaCategorySQL} WHERE ${TriviaCategorySQL.schema.verified} = false`, "categoriesNotVerified"],
             [sql`SELECT count(*) FROM ${TriviaReportSQL}`, "reports"],
           ])
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .findOne<any>()
       },
       description: "requires role: trivia/admin",
@@ -56,7 +55,7 @@ export const triviaExtensionsResolver: SchemaFields = {
 
   extend: schema => {
     schema = extendGraphQLType(schema, TriviaCategoryGraphQL, {
-      questionsCount: {
+      questionsCount: gqlResolver({
         type: gqlInteger(),
         resolve: async (self, args, ctx: SchemaContext) => {
           await assertAuth(ctx, ["trivia/admin"])
@@ -69,11 +68,11 @@ export const triviaExtensionsResolver: SchemaFields = {
         extensions: {
           complexity: Complexity.VIRTUAL_FIELD,
         },
-      },
+      }),
     })
 
     schema = extendGraphQLType(schema, TriviaQuestionGraphQL, {
-      reportsCount: {
+      reportsCount: gqlResolver({
         type: gqlInteger(),
         resolve: async (self, args, ctx: SchemaContext) => {
           await assertAuth(ctx, ["trivia/admin"])
@@ -86,8 +85,8 @@ export const triviaExtensionsResolver: SchemaFields = {
         extensions: {
           complexity: Complexity.VIRTUAL_FIELD,
         },
-      },
-      reports: {
+      }),
+      reports: gqlResolver({
         type: gqlArray(gqlType(TriviaReportGraphQL)),
         resolve: async (self, args, ctx: SchemaContext) => {
           await assertAuth(ctx, ["trivia/admin"])
@@ -100,7 +99,7 @@ export const triviaExtensionsResolver: SchemaFields = {
         extensions: {
           complexity: Complexity.PAGINATION,
         },
-      },
+      }),
     })
 
     return schema

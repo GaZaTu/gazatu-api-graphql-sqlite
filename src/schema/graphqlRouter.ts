@@ -7,7 +7,7 @@ import crypto from "node:crypto"
 import { readFile } from "node:fs/promises"
 import { any, Infer, nullable, object, optional, record, string } from "superstruct"
 import { projectDir } from "../lib/moduleDir.js"
-import { qJson, qString } from "../lib/query-parsing.js"
+import { qString } from "../lib/query-parsing.js"
 import { Complexity } from "./graphql-complexity.js"
 import schema, { SchemaContext } from "./schema.js"
 import useDatabaseApi from "./useDatabaseApi.js"
@@ -28,7 +28,6 @@ const complexityEstimators = [
 export const ignoreComplexity = Symbol()
 
 type CompiledQueryFunc<T> = (root: unknown, context: SchemaContext, variables: Record<string | symbol, unknown> | null | undefined) => Promise<ExecutionResult<T>> | ExecutionResult<T>
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const graphqlQueryCache = new Map<string, CompiledQueryFunc<any>>()
 
 export const getCompiledGraphQLQuery = <T>(request: Omit<GraphQLRequest, "variables">) => {
@@ -108,7 +107,6 @@ export const getCompiledGraphQLQuery = <T>(request: Omit<GraphQLRequest, "variab
   return result
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const executeGraphQLWithDatabase = async <T = any>(request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }, options?: { db?: SchemaContext["db"], throwErrors?: boolean, ignoreComplexity?: boolean }) => {
   const execute = getCompiledGraphQLQuery<T>(request)
 
@@ -227,8 +225,8 @@ graphqlRouter.post("/graphql", async ctx => {
 
 graphqlRouter.get("/graphql", async ctx => {
   const query = qString(ctx, q => q.query ?? q.q)
-  const variables = qJson(ctx, q => q.variables ?? q.v)
-  const operationName = qString(ctx, q => q.operationName ?? q.o)
+  const variables = undefined // qJson(ctx, q => q.variables ?? q.v)
+  const operationName = undefined // qString(ctx, q => q.operationName ?? q.o)
 
   if (!query?.startsWith("{") || !query?.endsWith("}")) {
     throw ctx.throw(405, "Expected GraphQL format: ?q={/* graphql */}")

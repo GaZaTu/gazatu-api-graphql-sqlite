@@ -21,22 +21,22 @@ export const TriviaReportSchema = object({
 export const [
   TriviaReportGraphQL,
   TriviaReportGraphQLInput,
-] = superstructToGraphQL<SchemaContext>()(TriviaReportSchema, {
+] = superstructToGraphQL(TriviaReportSchema, {
   name: "TriviaReport",
   fields: {
+    questionId: gqlUnset(),
     question: gqlResolver({
       type: gqlType(TriviaQuestionGraphQL),
-      resolve: async (self: TriviaReport, args, ctx: SchemaContext) => {
+      resolve: async (self, args, ctx: SchemaContext) => {
         const result = await ctx.db.of(TriviaQuestionSQL)
           .findOneById(self.questionId)
         return result!
       },
     }),
   },
-  inputFields: {
-    questionId: { type: gqlUnset() },
-    createdAt: { type: gqlUnset() },
-  },
+  inputUnset: [
+    "createdAt",
+  ],
 })
 
 export const [

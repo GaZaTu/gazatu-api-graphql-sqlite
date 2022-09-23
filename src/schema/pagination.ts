@@ -44,7 +44,6 @@ export const gqlPaginationArgs = {
 
 export type GraphQLPaginationArgs = InferedGraphQLFieldConfigArgumentMap<typeof gqlPaginationArgs>
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const findManyPaginated = async <T extends Record<string, any>>(query: Selector, args: GraphQLPaginationArgs | null | undefined, constructor: SQLEntity<T> | undefined) => {
   const slice = await query
     .offset(args?.offset)

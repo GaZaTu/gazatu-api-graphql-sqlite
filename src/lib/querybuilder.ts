@@ -1,6 +1,3 @@
-/* eslint-disable no-empty */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import DataLoader from "dataloader"
 
 export enum SqlOperator {
@@ -106,6 +103,7 @@ export class SqlExpr<L = any, O extends SqlOperator = SqlOperator, R = any> impl
         query += `${this._left}`
       }
     } else if (this._operator === SqlOperator.NOT) {
+      // ignore
     } else if (this._left instanceof SqlField || this._left instanceof SqlExpr) {
       if (((this._operator | SqlOperator.ASSIGN) === SqlOperator.ASSIGN) && (this._left instanceof SqlField)) {
         query += this._left.name
@@ -123,7 +121,9 @@ export class SqlExpr<L = any, O extends SqlOperator = SqlOperator, R = any> impl
     if (this._right instanceof SqlField || this._right instanceof SqlExpr) {
       query += this._right.query
     } else if (this._right === null || this._right === undefined) {
+      // ignore
     } else if ((this._operator | SqlOperator.CUSTOM) === SqlOperator.CUSTOM) {
+      // ignore
     } else if (Array.isArray(this._right)) {
       query += `(${[...this._right].map(() => "?").join(",") })`
     } else {
@@ -895,7 +895,12 @@ export const sql = (strings: TemplateStringsArray, ..._values: any[]) => {
       }
 
       if (Array.isArray(value)) {
-        return `${prev}(${value.map(() => "?").join(", ")})${curr}`
+        const array = value.slice()
+        while (array.length < 32) {
+          array.push(null)
+        }
+
+        return `${prev}(${array.map(() => "?").join(", ")})${curr}`
       }
 
       return `${prev}?${curr}`
@@ -912,7 +917,12 @@ export const sql = (strings: TemplateStringsArray, ..._values: any[]) => {
       }
 
       if (Array.isArray(value)) {
-        return value
+        const array = value.slice()
+        while (array.length < 32) {
+          array.push(null)
+        }
+
+        return array
       }
 
       return [value]
@@ -983,12 +993,12 @@ export abstract class DatabaseRepository {
       return !!table.schema.id
     })()
 
-    const count = (condition?: SqlExpr) => {
-      return this
+    const count = async (condition?: SqlExpr) => {
+      return await this
         .select(["count(*)"])
         .from(table)
         .where(condition)
-        .findFirstValue<number>()
+        .findFirstValue<number>() ?? 0
     }
 
     const countWithDataLoader: (typeof count) = async condition => {

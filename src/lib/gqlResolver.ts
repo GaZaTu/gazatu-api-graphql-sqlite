@@ -2,7 +2,6 @@ import { GraphQLBoolean, GraphQLFieldConfig, GraphQLFieldConfigArgumentMap, Grap
 import { Struct } from "superstruct"
 
 export type InferGraphQLType<O> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   O extends { struct: Struct<infer T, any> }
     ? T | null | undefined
     : O extends GraphQLScalarType<infer T>
@@ -34,7 +33,6 @@ export default gqlResolver
 export const gqlArgsInput = <A extends GraphQLFieldConfigArgumentMap>(name: string, fields: A) => {
   return {
     args: {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       type: new GraphQLInputObjectType({ name, fields }) as any as (GraphQLInputObjectType & { struct: Struct<InferedGraphQLFieldConfigArgumentMap<A>, any> }),
     },
   }
@@ -78,9 +76,9 @@ const GraphQLUnknown = new GraphQLScalarType({
 export const gqlUnknown = () =>
   GraphQLUnknown
 
-const GraphQLUnset = new GraphQLScalarType({
+export const GraphQLUnset = new GraphQLScalarType({
   name: "Unset",
 })
 
 export const gqlUnset = () =>
-  GraphQLUnset
+  ({ type: GraphQLUnset })

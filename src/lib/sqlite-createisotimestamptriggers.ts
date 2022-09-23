@@ -1,13 +1,15 @@
 export const createCreateISOTimestampTriggersScript = (table: string, column: string) => {
   const script = `
-CREATE TRIGGER "trg_${table}_after_insert_of_${column}_fix_iso_timestamp" AFTER INSERT ON "${table}"
+CREATE TRIGGER "trg_${table}_after_insert_of_${column}_fix_iso_timestamp"
+AFTER INSERT ON "${table}" FOR EACH ROW
 BEGIN
 UPDATE "${table}"
 SET "${column}" = strftime('%Y-%m-%dT%H:%M:%fZ', NEW."${column}")
 WHERE rowid = NEW.rowid;
 END;
 
-CREATE TRIGGER "trg_${table}_after_update_of_${column}_fix_iso_timestamp" AFTER UPDATE OF "${column}" ON "${table}"
+CREATE TRIGGER "trg_${table}_after_update_of_${column}_fix_iso_timestamp"
+AFTER UPDATE OF "${column}" ON "${table}" FOR EACH ROW
 WHEN NEW."${column}" IS NOT OLD."${column}"
 BEGIN
 UPDATE "${table}"
