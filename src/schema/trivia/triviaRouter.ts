@@ -24,12 +24,16 @@ triviaRouter.get("/events", async ctx => {
       return
     }
 
-    stream.sendEvent("", { type, table })
+    try {
+      stream.sendEvent("", { type, table })
+    } catch {
+      stream.destroy()
+    }
   }
 
-  databaseUpdateHooks.add(listener)
+  databaseUpdateHooks.on("change", listener)
   stream.on("close", () => {
-    databaseUpdateHooks.delete(listener)
+    databaseUpdateHooks.off("change", listener)
   })
 })
 

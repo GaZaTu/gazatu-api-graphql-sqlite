@@ -1,4 +1,5 @@
 import crypto from "node:crypto"
+import EventEmitter from "node:events"
 import { mkdir, readdir, readFile } from "node:fs/promises"
 import sqlite3, { Database } from "sqlite3"
 import { projectDir } from "../lib/moduleDir.js"
@@ -270,12 +271,18 @@ export type DatabaseConnection = {
 
 export const databaseConnections = new Set<DatabaseConnection>()
 
+export type DatabaseUpdateHook = (type: string, database: string, table: string, rowid: number) => void
+export const databaseUpdateHooks = new EventEmitter() as EventEmitter & {
+  emit(event: "change", ...args: Parameters<DatabaseUpdateHook>): void
+  on(event: "change", listener: DatabaseUpdateHook): void
+}
+
 const databaseConnectionsAdd = databaseConnections.add.bind(databaseConnections)
 Object.assign(databaseConnections, {
   add: (value: DatabaseConnection) => {
-    for (const hook of databaseUpdateHooks) {
-      value.db.on("change", hook)
-    }
+    value.db.on("change", (...args) => {
+      databaseUpdateHooks.emit("change", ...args)
+    })
 
     return databaseConnectionsAdd(value)
   },
@@ -298,31 +305,6 @@ Object.assign(databaseConnections, {
       connection.inUse = true
       databaseConnections.delete(connection)
     }
-  },
-})
-
-export type DatabaseUpdateHook = (type: string, database: string, table: string, rowid: number) => void
-export const databaseUpdateHooks = new Set<DatabaseUpdateHook>()
-
-const databaseUpdateHooksAdd = databaseUpdateHooks.add.bind(databaseUpdateHooks)
-Object.assign(databaseUpdateHooks, {
-  add: (value: DatabaseUpdateHook) => {
-    for (const { db } of databaseConnections) {
-      db.on("change", value)
-    }
-
-    return databaseUpdateHooksAdd(value)
-  },
-})
-
-const databaseUpdateHooksDelete = databaseUpdateHooks.delete.bind(databaseUpdateHooks)
-Object.assign(databaseUpdateHooks, {
-  delete: (value: DatabaseUpdateHook) => {
-    for (const { db } of databaseConnections) {
-      db.off("change", value)
-    }
-
-    return databaseUpdateHooksDelete(value)
   },
 })
 

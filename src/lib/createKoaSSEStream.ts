@@ -14,10 +14,10 @@ const createKoaSSEStream = <S, C>(ctx: ParameterizedContext<S, C>) => {
   })
 
   const stream = new PassThrough()
-  stream.write(":ping\n\n")
+  stream.write("event:ping\ndata:\n\n")
 
   const intervalId = setInterval(() => {
-    stream.write(":ping\n\n")
+    stream.write("event:ping\ndata:\n\n")
   }, 30000)
 
   stream.on("close", () => {
@@ -30,7 +30,7 @@ const createKoaSSEStream = <S, C>(ctx: ParameterizedContext<S, C>) => {
   return Object.assign(stream, {
     sendEvent: (event: string | undefined, object: unknown) => {
       return new Promise<void>((resolve, reject) => {
-        stream.write(`${event ? `event: ${event}\n` : ""}data: ${JSON.stringify(object)}\n\n`, err => {
+        stream.write(`${event ? `event:${event}\n` : ""}data:${JSON.stringify(object)}\n\n`, err => {
           err ? reject(err) : resolve()
         })
       })
