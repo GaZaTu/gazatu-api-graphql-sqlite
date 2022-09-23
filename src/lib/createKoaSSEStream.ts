@@ -14,11 +14,11 @@ const createKoaSSEStream = <S, C>(ctx: ParameterizedContext<S, C>) => {
   })
 
   const stream = new PassThrough()
-  stream.write(":ping")
+  stream.write(":ping\n\n")
 
   const intervalId = setInterval(() => {
-    stream.write(":ping")
-  }, 45000)
+    stream.write(":ping\n\n")
+  }, 30000)
 
   stream.on("close", () => {
     clearInterval(intervalId)
