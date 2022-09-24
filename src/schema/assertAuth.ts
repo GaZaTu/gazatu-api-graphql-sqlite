@@ -1,6 +1,7 @@
 import { verifyJwt } from "../lib/jwt.js"
 import { resolveUserRolesForUser, User, UserSQL } from "./misc/user.js"
 import { SchemaContext } from "./schema.js"
+import useDatabaseApi from "./useDatabaseApi.js"
 
 const currentUserSymbol = Symbol()
 
@@ -71,3 +72,21 @@ const assertAuth = async ({ http, db, cache }: Pick<SchemaContext, "http" | "db"
 }
 
 export default assertAuth
+
+export const currentUserHttp = async (http: SchemaContext["http"]) => {
+  return await useDatabaseApi(async db => {
+    return await currentUser({ http, db, cache: http })
+  })
+}
+
+export const hasAuthHttp = async (http: SchemaContext["http"], needed?: string[]) => {
+  return await useDatabaseApi(async db => {
+    return await hasAuth({ http, db, cache: http }, needed)
+  })
+}
+
+export const assertAuthHttp = async (http: SchemaContext["http"], needed?: string[]) => {
+  await useDatabaseApi(async db => {
+    await assertAuth({ http, db, cache: http }, needed)
+  })
+}

@@ -2,11 +2,12 @@ import argon2 from "argon2"
 import config from "config"
 import { GraphQLFieldResolver } from "graphql"
 import { array, Infer, nullable, object, optional, string } from "superstruct"
-import gqlResolver, { gqlArray, gqlString, gqlType, gqlUnset } from "../../lib/gqlResolver.js"
+import gqlResolver, { gqlArray, gqlNullable, gqlString, gqlType, gqlUnset, gqlVoid } from "../../lib/gqlResolver.js"
 import { signJwt } from "../../lib/jwt.js"
 import { sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
+import assertAuth, { currentUser, hasAuth } from "../assertAuth.js"
 import { getN2MDataLoaderFromContext } from "../getDataLoaderFromContext.js"
 import { Complexity } from "../graphql-complexity.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
@@ -176,6 +177,54 @@ const getDefaultUserRoleMapping = () => {
 
 export const userResolver: SchemaFields = {
   query: {
+    userById: gqlResolver({
+      type: gqlNullable(gqlType(UserGraphQL)),
+      args: {
+        id: {
+          type: gqlString(),
+        },
+      },
+      resolve: async (self, { id }, ctx) => {
+        const user = await currentUser(ctx)
+
+        if (id !== user?.id) {
+          await assertAuth(ctx, ["admin"])
+        }
+
+        const result = await ctx.db.of(UserSQL)
+          .findOneById(id)
+        return result
+      },
+      extensions: {
+        complexity: Complexity.SIMPLE_QUERY,
+      },
+    }),
+    userList: gqlResolver({
+      type: gqlArray(gqlType(UserGraphQL)),
+      resolve: async (self, args, ctx) => {
+        await assertAuth(ctx, ["admin"])
+
+        const result = await ctx.db
+          .select(UserSQL)
+          .findMany(UserSQL)
+        return result
+      },
+      extensions: {
+        complexity: Complexity.PAGINATION,
+      },
+    }),
+    userRoleList: gqlResolver({
+      type: gqlArray(gqlType(UserRoleGraphQL)),
+      resolve: async (self, args, ctx) => {
+        const result = await ctx.db
+          .select(UserRoleSQL)
+          .findMany(UserRoleSQL)
+        return result
+      },
+      extensions: {
+        complexity: Complexity.PAGINATION,
+      },
+    }),
     userAuthenticate: gqlResolver({
       type: gqlType(AuthGraphQL),
       args: {
@@ -235,6 +284,78 @@ export const userResolver: SchemaFields = {
       },
       extensions: {
         complexity: Complexity.MUTATION,
+      },
+    }),
+    userUpdate: gqlResolver({
+      type: gqlVoid(),
+      args: {
+        input: {
+          type: gqlType(UserGraphQLInput),
+        },
+      },
+      resolve: async (self, { input: _input }, ctx) => {
+        if (!_input.id) {
+          return
+        }
+
+        const user = await currentUser(ctx)
+
+        if (_input.id !== user?.id) {
+          await assertAuth(ctx, ["admin"])
+        }
+
+        const {
+          roles,
+        } = _input
+
+        // TODO: fix save
+        // const [result] = await ctx.db.of(UserSQL)
+        //   .save(input)
+
+        if (await hasAuth(ctx, ["admin"])) {
+          for (const role of roles) {
+            if (!role.id) {
+              const [{ id }] = await ctx.db.of(UserRoleSQL)
+                .save(role)
+              role.id = id
+            }
+          }
+
+          await ctx.db.of(N2MUserUserRoleSQL)
+            .removeMany(sql`${N2MUserUserRoleSQL.schema.userId} = ${_input.id}`)
+
+          for (const role of roles) {
+            await ctx.db.of(N2MUserUserRoleSQL)
+              .save({
+                userId: _input.id!,
+                userRoleId: role.id!,
+              })
+          }
+        }
+      },
+      extensions: {
+        complexity: Complexity.SIMPLE_QUERY,
+      },
+    }),
+    userRemove: gqlResolver({
+      type: gqlVoid(),
+      args: {
+        ids: {
+          type: gqlArray(gqlString()),
+        },
+      },
+      resolve: async (self, { ids }, ctx) => {
+        const user = await currentUser(ctx)
+
+        if (ids.length !== 1 || ids[0] !== user?.id) {
+          await assertAuth(ctx, ["admin"])
+        }
+
+        await ctx.db.of(UserSQL)
+          .removeManyById(ids)
+      },
+      extensions: {
+        complexity: Complexity.SIMPLE_QUERY,
       },
     }),
   },

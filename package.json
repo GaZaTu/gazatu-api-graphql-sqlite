@@ -21,6 +21,7 @@
     "@types/koa-json-error": "^3.1.4",
     "@types/koa-logger": "^3.1.2",
     "@types/node": "^18.7.18",
+    "@types/sharp": "^0.31.0",
     "@typescript-eslint/eslint-plugin": "^5.37.0",
     "@typescript-eslint/parser": "^5.37.0",
     "chai": "^4.3.6",
@@ -48,6 +49,7 @@
     "koa-logger": "^3.2.1",
     "node-fetch": "^3.2.10",
     "proxy-agent": "^5.0.0",
+    "sharp": "^0.31.0",
     "sqlite3": "^5.1.1",
     "superstruct": "^0.16.0",
     "ulid": "^2.3.0"
