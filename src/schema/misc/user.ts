@@ -195,6 +195,7 @@ export const userResolver: SchemaFields = {
           .findOneById(id)
         return result
       },
+      description: "requires role: admin (or currentUser)",
       extensions: {
         complexity: Complexity.SIMPLE_QUERY,
       },
@@ -209,6 +210,7 @@ export const userResolver: SchemaFields = {
           .findMany(UserSQL)
         return result
       },
+      description: "requires role: admin",
       extensions: {
         complexity: Complexity.PAGINATION,
       },
@@ -221,6 +223,7 @@ export const userResolver: SchemaFields = {
           .findMany(UserRoleSQL)
         return result
       },
+      description: "",
       extensions: {
         complexity: Complexity.PAGINATION,
       },
@@ -236,6 +239,7 @@ export const userResolver: SchemaFields = {
         },
       },
       resolve: authenticate,
+      description: "",
       extensions: {
         complexity: Complexity.MUTATION,
       },
@@ -282,6 +286,7 @@ export const userResolver: SchemaFields = {
         const result = await authenticate(self, args, ctx, info)
         return result
       },
+      description: "",
       extensions: {
         complexity: Complexity.MUTATION,
       },
@@ -333,11 +338,12 @@ export const userResolver: SchemaFields = {
           }
         }
       },
+      description: "requires role: admin (or currentUser)",
       extensions: {
         complexity: Complexity.SIMPLE_QUERY,
       },
     }),
-    userRemove: gqlResolver({
+    userListRemoveByIds: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {
@@ -354,6 +360,7 @@ export const userResolver: SchemaFields = {
         await ctx.db.of(UserSQL)
           .removeManyById(ids)
       },
+      description: "requires role: admin (or currentUser)",
       extensions: {
         complexity: Complexity.SIMPLE_QUERY,
       },

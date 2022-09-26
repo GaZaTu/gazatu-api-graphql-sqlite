@@ -199,8 +199,11 @@ const open = async (options = { trace: true }) => {
   })
 }
 
+const statementCacheAll = new Map<sqlite3.Database, Map<string, sqlite3.Statement>>()
+
 export const createCachedAll = (db: sqlite3.Database) => {
   const statementCache = new Map<string, sqlite3.Statement>()
+  statementCacheAll.set(db, statementCache)
 
   const getStatement = async (query: string) => {
     const cacheKey = crypto.createHash("md5").update(query).digest("hex")
@@ -209,7 +212,7 @@ export const createCachedAll = (db: sqlite3.Database) => {
       return statementCache.get(cacheKey)!
     }
 
-    const result = await new Promise<sqlite3.Statement>((resolve, reject) => {
+    const statement = await new Promise<sqlite3.Statement>((resolve, reject) => {
       const statement = db.prepare(query, err => {
         if (err) {
           reject(err)
@@ -219,13 +222,15 @@ export const createCachedAll = (db: sqlite3.Database) => {
       })
     })
 
-    statementCache.set(cacheKey, result)
-    return result
+    statementCache.set(cacheKey, statement)
+    return statement
   }
 
   const close = db.close.bind(db)
   Object.assign(db, {
     close: async () => {
+      statementCacheAll.delete(db)
+
       await Promise.all(
         [...statementCache.values()].map(stmt => {
           return new Promise<void>((resolve, reject) => {
@@ -234,32 +239,51 @@ export const createCachedAll = (db: sqlite3.Database) => {
         })
       )
 
+      statementCache.clear()
+
       await close()
     },
   })
 
-  const result = (query: string, values: any[]) => {
-    return new Promise<Record<string, any>[]>((resolve, reject) => {
-      void (async () => {
-        const statement = await getStatement(query)
+  const all = async (query: string, values: any[]) => {
+    query = query.trim()
 
-        statement.all(values, (err, rows) => {
-          statement.reset(() => {
-            if (err) {
-              if ((err as any).code === "SQLITE_BUSY") {
-                result(query, values).then(resolve, reject)
-              } else {
-                reject(err)
-              }
-            } else {
-              resolve(rows)
-            }
+    const statement = await getStatement(query)
+
+    if (
+      query.startsWith("INSERT") ||
+      query.startsWith("UPDATE") ||
+      query.startsWith("DELETE")
+    ) {
+      await Promise.all(
+        [...statementCacheAll.values()]
+          .flatMap(statementCache => [...statementCache.values()])
+          .map(statement => {
+            return new Promise(resolve => {
+              statement.reset(resolve)
+            })
           })
-        })
-      })()
+      )
+    }
+
+    const rows = await new Promise<Record<string, any>[]>((resolve, reject) => {
+      statement.all(values, (err, rows) => {
+        if (err) {
+          if ((err as any).code === "SQLITE_BUSY") {
+            all(query, values).then(resolve, reject)
+          } else {
+            reject(err)
+          }
+        } else {
+          resolve(rows)
+        }
+      })
     })
+
+    return rows
   }
-  return result
+
+  return all
 }
 
 export type DatabaseConnection = {

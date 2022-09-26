@@ -62,138 +62,134 @@ type BlogResult = {
   }
 }
 
-void (async () => {
-  const response = await fetch("https://api.gazatu.xyz/trivia/questions?shuffled=false", {
-    agent: httpProxyAgent,
-  })
-  const responseJson = await response.json() as TriviaQuestion[]
+const response = await fetch("https://api.gazatu.xyz/trivia/questions?shuffled=false", {
+  agent: httpProxyAgent,
+})
+const responseJson = await response.json() as TriviaQuestion[]
 
-  try {
-    await useDatabaseApi(async dbApi => {
-      await dbApi.transaction(async () => {
-        await dbApi.remove()
-          .from(TriviaQuestionSQL)
-        await dbApi.remove()
-          .from(TriviaCategorySQL)
+try {
+  await useDatabaseApi(async dbApi => {
+    await dbApi.transaction(async () => {
+      await dbApi.remove()
+        .from(TriviaQuestionSQL)
+      await dbApi.remove()
+        .from(TriviaCategorySQL)
 
-        for (const question of responseJson) {
-          question.category = categoryAliases[question.category] ?? question.category
+      for (const question of responseJson) {
+        question.category = categoryAliases[question.category] ?? question.category
 
-          let categoryId = undefined as string | undefined
-          try {
-            const [{ id }] = await dbApi.of(TriviaCategorySQL)
-              .save({
-                name: question.category,
-                verified: true,
-                disabled: false,
-              })
-            categoryId = id!
-          } catch {
-            const [{ id }] = await dbApi.of(TriviaCategorySQL)
-              .findMany(sql`${TriviaCategorySQL.schema.name} = ${question.category}`)
-            categoryId = id!
-          }
-
-          const [{ id }] = await dbApi.of(TriviaQuestionSQL)
+        let categoryId = undefined as string | undefined
+        try {
+          const [{ id }] = await dbApi.of(TriviaCategorySQL)
             .save({
-              question: question.question,
-              answer: question.answer,
-              hint1: question.hint1 || null,
-              hint2: question.hint2 || null,
-              submitter: question.submitter || null,
+              name: question.category,
               verified: true,
               disabled: false,
             })
-
-          await dbApi.of(N2MTriviaQuestionTriviaCategorySQL)
-            .save({
-              questionId: id!,
-              categoryId: categoryId!,
-            })
+          categoryId = id!
+        } catch {
+          const [{ id }] = await dbApi.of(TriviaCategorySQL)
+            .findMany(sql`${TriviaCategorySQL.schema.name} = ${question.category}`)
+          categoryId = id!
         }
-      })
+
+        const [{ id }] = await dbApi.of(TriviaQuestionSQL)
+          .save({
+            question: question.question,
+            answer: question.answer,
+            hint1: question.hint1 || null,
+            hint2: question.hint2 || null,
+            submitter: question.submitter || null,
+            verified: true,
+            disabled: false,
+          })
+
+        await dbApi.of(N2MTriviaQuestionTriviaCategorySQL)
+          .save({
+            questionId: id!,
+            categoryId: categoryId!,
+          })
+      }
     })
-  } finally {
-    databaseConnections.clear()
-  }
-
-  const responseBlog = await fetch("https://api.gazatu.xyz/graphql", {
-    agent: httpProxyAgent,
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      query: `
-        query {
-          blogEntries {
-            id
-            story
-            title
-            message
-            imageMimeType
-            imageFileExtension
-            createdAt
-          }
-        }
-      `,
-    }),
   })
-  const responseBlogJson = await responseBlog.json() as BlogResult
+} finally {
+  databaseConnections.clear()
+}
+
+const responseBlog = await fetch("https://api.gazatu.xyz/graphql", {
+  agent: httpProxyAgent,
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    query: `
+      query {
+        blogEntries {
+          id
+          story
+          title
+          message
+          imageMimeType
+          imageFileExtension
+          createdAt
+        }
+      }
+    `,
+  }),
+})
+const responseBlogJson = await responseBlog.json() as BlogResult
+
+try {
+  const imagesPath = `${projectDir}/data/files/blog/images`
+  const previewsPath = `${projectDir}/data/files/blog/previews`
 
   try {
-    const imagesPath = `${projectDir}/data/files/blog/images`
-    const previewsPath = `${projectDir}/data/files/blog/previews`
-
-    try {
-      await rm(imagesPath, { recursive: true, force: true })
-      await rm(previewsPath, { recursive: true, force: true })
-    } catch {
-      // ignore
-    }
-
-    await mkdir(imagesPath, { recursive: true })
-    await mkdir(previewsPath, { recursive: true })
-
-    await useDatabaseApi(async dbApi => {
-      await dbApi.transaction(async () => {
-        await dbApi.remove()
-          .from(BlogEntrySQL)
-
-        for (const blogEntry of responseBlogJson.data.blogEntries) {
-          if (!blogEntry.imageFileExtension) {
-            continue
-          }
-
-          try {
-            const image = await fetch(`https://api.gazatu.xyz/blog/entries/${blogEntry.id}/image.${blogEntry.imageFileExtension}`, {
-              agent: httpProxyAgent,
-            }).then(r => r.arrayBuffer())
-            const preview = await fetch(`https://api.gazatu.xyz/blog/entries/${blogEntry.id}/preview.${blogEntry.imageFileExtension}`, {
-              agent: httpProxyAgent,
-            }).then(r => r.arrayBuffer())
-
-            const [{ id }] = await dbApi.of(BlogEntrySQL)
-              .save({
-                story: blogEntry.story,
-                title: blogEntry.title,
-                message: blogEntry.message,
-                imageMimeType: blogEntry.imageMimeType,
-                imageFileExtension: blogEntry.imageFileExtension,
-                createdAt: blogEntry.createdAt,
-              })
-
-            await writeFile(`${imagesPath}/${id}.${blogEntry.imageFileExtension}`, Buffer.from(image))
-            await writeFile(`${previewsPath}/${id}.${blogEntry.imageFileExtension}`, Buffer.from(preview))
-          } catch (error) {
-            console.warn(error)
-          }
-        }
-      })
-    })
-  } finally {
-    databaseConnections.clear()
+    await rm(imagesPath, { recursive: true, force: true })
+    await rm(previewsPath, { recursive: true, force: true })
+  } catch {
+    // ignore
   }
 
-  return "done"
-})().then(console.log, console.error)
+  await mkdir(imagesPath, { recursive: true })
+  await mkdir(previewsPath, { recursive: true })
+
+  await useDatabaseApi(async dbApi => {
+    await dbApi.transaction(async () => {
+      await dbApi.remove()
+        .from(BlogEntrySQL)
+
+      for (const blogEntry of responseBlogJson.data.blogEntries) {
+        if (!blogEntry.imageFileExtension) {
+          continue
+        }
+
+        try {
+          const image = await fetch(`https://api.gazatu.xyz/blog/entries/${blogEntry.id}/image.${blogEntry.imageFileExtension}`, {
+            agent: httpProxyAgent,
+          }).then(r => r.arrayBuffer())
+          const preview = await fetch(`https://api.gazatu.xyz/blog/entries/${blogEntry.id}/preview.${blogEntry.imageFileExtension}`, {
+            agent: httpProxyAgent,
+          }).then(r => r.arrayBuffer())
+
+          const [{ id }] = await dbApi.of(BlogEntrySQL)
+            .save({
+              story: blogEntry.story,
+              title: blogEntry.title,
+              message: blogEntry.message,
+              imageMimeType: blogEntry.imageMimeType,
+              imageFileExtension: blogEntry.imageFileExtension,
+              createdAt: blogEntry.createdAt,
+            })
+
+          await writeFile(`${imagesPath}/${id}.${blogEntry.imageFileExtension}`, Buffer.from(image))
+          await writeFile(`${previewsPath}/${id}.${blogEntry.imageFileExtension}`, Buffer.from(preview))
+        } catch (error) {
+          console.warn(error)
+        }
+      }
+    })
+  })
+} finally {
+  databaseConnections.clear()
+}

@@ -47,19 +47,18 @@ triviaRouter.get("/questions", async ctx => {
   const submitters = qArray(ctx, q => q.submitters)
 
   type Query = {
-    triviaQuestionsConnection?: {
+    triviaQuestionListConnection?: {
       slice: TriviaQuestion[]
     }
   }
 
   const result = await executeGraphQLWithDatabase<Query>({
     query: `
-      query ($args: TriviaQuestionsConnectionArgs) {
-        triviaQuestionsConnection(args: $args) {
+      query ($args: TriviaQuestionListConnectionArgs) {
+        triviaQuestionListConnection(args: $args) {
           slice {
             id
             categories {
-              id
               name
             }
             question
@@ -90,11 +89,11 @@ triviaRouter.get("/questions", async ctx => {
     ignoreComplexity: true,
   })
 
-  const questions = (result.data?.triviaQuestionsConnection?.slice ?? [])
+  const questions = (result.data?.triviaQuestionListConnection?.slice ?? [])
     .map(question => ({
       ...question,
-      categories: question.categories.map(c => c.name),
-      category: question.categories[0]?.name,
+      categories: question.categories?.map(c => c.name),
+      category: question.categories?.[0]?.name,
     }))
 
   ctx.response.type = "application/json"

@@ -55,6 +55,7 @@ export const triviaCategoryResolver: SchemaFields = {
           .findOneById(id)
         return result
       },
+      description: "",
       extensions: {
         complexity: Complexity.SIMPLE_QUERY,
       },
@@ -79,6 +80,7 @@ export const triviaCategoryResolver: SchemaFields = {
           .findMany(TriviaCategorySQL)
         return result
       },
+      description: "",
       extensions: {
         complexity: Complexity.PAGINATION,
       },
@@ -108,7 +110,7 @@ export const triviaCategoryResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    triviaCategoryVerifyByIds: gqlResolver({
+    triviaCategoryListVerifyByIds: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {
@@ -126,7 +128,7 @@ export const triviaCategoryResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    triviaCategoryRemoveByIds: gqlResolver({
+    triviaCategoryListRemoveByIds: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {

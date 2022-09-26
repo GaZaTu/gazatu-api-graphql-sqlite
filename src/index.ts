@@ -6,18 +6,16 @@ import schema from "./schema/schema.js"
 import useDatabaseApi from "./schema/useDatabaseApi.js"
 import { listen } from "./server.js"
 
-void (async () => {
-  await mkdir(`${projectDir}/data`, { recursive: true })
+await mkdir(`${projectDir}/data`, { recursive: true })
 
-  const schemaAsGQL = printSchema(schema)
-  await writeFile(`${projectDir}/data/schema.gql`, schemaAsGQL)
+const schemaAsGQL = printSchema(schema)
+await writeFile(`${projectDir}/data/schema.gql`, schemaAsGQL)
 
-  const schemaAsTS = gqlToTs(schemaAsGQL)
-  await writeFile(`${projectDir}/data/schema.gql.ts`, schemaAsTS)
+const schemaAsTS = gqlToTs(schemaAsGQL)
+await writeFile(`${projectDir}/data/schema.gql.ts`, schemaAsTS)
 
-  await useDatabaseApi(async dbApi => {
-    await dbApi.exec("PRAGMA wal_checkpoint(PASSIVE)", [])
-  })
+await useDatabaseApi(async dbApi => {
+  await dbApi.exec("PRAGMA wal_checkpoint(PASSIVE)", [])
+})
 
-  await listen()
-})().then(console.log, console.error)
+await listen()

@@ -111,6 +111,7 @@ export const triviaQuestionResolver: SchemaFields = {
           .findOneById(id)
         return result
       },
+      description: "",
       extensions: {
         complexity: Complexity.SIMPLE_QUERY,
       },
@@ -197,6 +198,7 @@ export const triviaQuestionResolver: SchemaFields = {
         const result = await findManyPaginated(query, args, TriviaQuestionSQL)
         return result
       },
+      description: "",
       extensions: {
         complexity: Complexity.PAGINATION,
       },
@@ -266,7 +268,7 @@ export const triviaQuestionResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    triviaQuestionVerifyByIds: gqlResolver({
+    triviaQuestionListVerifyByIds: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {
@@ -284,7 +286,7 @@ export const triviaQuestionResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    triviaQuestionDisableByIds: gqlResolver({
+    triviaQuestionListDisableByIds: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {

@@ -112,11 +112,12 @@ export const triviaReportResolver: SchemaFields = {
           .save(input)
         return result
       },
+      description: "",
       extensions: {
         complexity: Complexity.MUTATION,
       },
     }),
-    triviaReportRemoveById: gqlResolver({
+    triviaReportListRemoveById: gqlResolver({
       type: gqlVoid(),
       args: {
         ids: {
@@ -134,7 +135,7 @@ export const triviaReportResolver: SchemaFields = {
         complexity: Complexity.MUTATION,
       },
     }),
-    triviaReportRemoveByQuestionId: gqlResolver({
+    triviaReportListRemoveByQuestionId: gqlResolver({
       type: gqlVoid(),
       args: {
         questionId: {

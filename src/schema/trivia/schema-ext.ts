@@ -29,7 +29,7 @@ export const [
 
 export type TriviaCounts = Infer<typeof TriviaCountsSchema>
 
-export const triviaExtensionsResolver: SchemaFields = {
+export const triviaSchemaExtensionResolver: SchemaFields = {
   query: {
     triviaCounts: gqlResolver({
       type: gqlType(TriviaCountsGraphQL),

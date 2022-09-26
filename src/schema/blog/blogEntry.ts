@@ -1,5 +1,5 @@
 import { Infer, nullable, object, optional, size, string } from "superstruct"
-import gqlResolver, { gqlArgsInput, gqlNullable, gqlString, gqlType } from "../../lib/gqlResolver.js"
+import gqlResolver, { gqlArgsInput, gqlArray, gqlNullable, gqlString, gqlType, gqlVoid } from "../../lib/gqlResolver.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import assertAuth from "../assertAuth.js"
@@ -53,6 +53,7 @@ export const BlogEntryResolver: SchemaFields = {
           .findOneById(id)
         return result
       },
+      description: "",
       extensions: {
         complexity: Complexity.SIMPLE_QUERY,
       },
@@ -69,6 +70,7 @@ export const BlogEntryResolver: SchemaFields = {
         const result = await findManyPaginated(query, args, BlogEntrySQL)
         return result
       },
+      description: "",
       extensions: {
         complexity: Complexity.PAGINATION,
       },
@@ -91,7 +93,25 @@ export const BlogEntryResolver: SchemaFields = {
           .save(input)
         return result
       },
-      description: "requires role: trivia/admin",
+      description: "requires role: admin",
+      extensions: {
+        complexity: Complexity.MUTATION,
+      },
+    }),
+    blogEntryListRemoveByIds: gqlResolver({
+      type: gqlVoid(),
+      args: {
+        ids: {
+          type: gqlArray(gqlString()),
+        },
+      },
+      resolve: async (self, { ids }, ctx) => {
+        await assertAuth(ctx, ["admin"])
+
+        await ctx.db.of(BlogEntrySQL)
+          .removeManyById(ids)
+      },
+      description: "requires role: admin",
       extensions: {
         complexity: Complexity.MUTATION,
       },

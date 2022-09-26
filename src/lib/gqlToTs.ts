@@ -32,9 +32,8 @@ const gqlTypeToTsType = (type: gql.TypeNode): ts.TypeNode => {
       return ts.factory.createUnionTypeNode([ts.factory.createArrayTypeNode(gqlTypeToTsType(type.type)), ts.factory.createTypeReferenceNode("null")])
     case "NamedType":
       return ts.factory.createUnionTypeNode([ts.factory.createTypeReferenceNode(gqlTypeNameToTsTypeName(type.name.value), undefined), ts.factory.createTypeReferenceNode("null")])
-    case "NonNullType": {
+    case "NonNullType":
       return unwrapNullableTsType(gqlTypeToTsType(type.type))
-    }
     default:
       return undefined!
   }
@@ -139,9 +138,9 @@ const gqlEnumTypeToTsEnumType = (definition: gql.EnumTypeDefinitionNode) => {
 const gqlDefinitionToTsDeclaration = (state: GraphQLToTypeScriptConverterState, definition: gql.DefinitionNode) => {
   switch (definition.kind) {
     case "InterfaceTypeDefinition":
-    case "InputObjectTypeDefinition":
       return undefined
     case "ObjectTypeDefinition":
+    case "InputObjectTypeDefinition":
       return gqlObjectTypeToTsInterface(state, definition)
     case "ScalarTypeDefinition":
       return gqlScalarTypeToTsScalarType(definition)

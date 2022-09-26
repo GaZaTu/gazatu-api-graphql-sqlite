@@ -3,7 +3,7 @@ import { ParameterizedContext } from "koa"
 import { DatabaseRepository } from "../lib/querybuilder.js"
 import { userResolver } from "./misc/user.js"
 import { triviaCategoryResolver } from "./trivia/category.js"
-import { triviaExtensionsResolver } from "./trivia/extensions.js"
+import { triviaSchemaExtensionResolver } from "./trivia/schema-ext.js"
 import { triviaQuestionResolver } from "./trivia/question.js"
 import { triviaReportResolver } from "./trivia/report.js"
 
@@ -61,7 +61,7 @@ const schema = buildSchema([
   triviaCategoryResolver,
   triviaQuestionResolver,
   triviaReportResolver,
-  triviaExtensionsResolver,
+  triviaSchemaExtensionResolver,
 ])
 
 export default schema

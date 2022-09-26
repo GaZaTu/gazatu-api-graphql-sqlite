@@ -64,9 +64,9 @@ export const hasAuth = async ({ http, db, cache }: Pick<SchemaContext, "http" | 
 const assertAuth = async ({ http, db, cache }: Pick<SchemaContext, "http" | "db" | "cache">, needed?: string[]) => {
   if (!await hasAuth({ http, db, cache }, needed)) {
     if (needed) {
-      throw http.throw(403, new Error(`Required user roles: ${needed?.join(", ")}`))
+      throw http.throw(403, new Error(`Required user roles: ${needed?.join(", ")}.`))
     } else {
-      throw http.throw(401, new Error("You need to be logged in to access this resource"))
+      throw http.throw(401, new Error("You need to be logged in to access this resource."))
     }
   }
 }

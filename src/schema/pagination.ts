@@ -46,8 +46,8 @@ export type GraphQLPaginationArgs = InferedGraphQLFieldConfigArgumentMap<typeof 
 
 export const findManyPaginated = async <T extends Record<string, any>>(query: Selector, args: GraphQLPaginationArgs | null | undefined, constructor: SQLEntity<T> | undefined) => {
   const slice = await query
-    .offset(args?.offset)
-    .limit(args?.limit)
+    .offset(args?.offset ?? 0)
+    .limit(args?.limit ?? 25)
     .findMany(constructor)
 
   const count = await query
