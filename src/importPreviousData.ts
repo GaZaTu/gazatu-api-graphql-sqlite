@@ -1,9 +1,12 @@
+import { mkdir, rm, writeFile } from "fs/promises"
 import fetch from "node-fetch"
+import ProxyAgent from "proxy-agent"
+import { projectDir } from "./lib/moduleDir.js"
 import { sql } from "./lib/querybuilder.js"
-import useDatabaseApi, { databaseConnections } from "./schema/useDatabaseApi.js"
+import { BlogEntrySQL } from "./schema/blog/blogEntry.js"
 import { TriviaCategorySQL } from "./schema/trivia/category.js"
 import { N2MTriviaQuestionTriviaCategorySQL, TriviaQuestionSQL } from "./schema/trivia/question.js"
-import ProxyAgent from "proxy-agent"
+import useDatabaseApi, { databaseConnections } from "./schema/useDatabaseApi.js"
 
 const HTTP_PROXY = process.env.HTTP_PROXY
 const httpProxyAgent = HTTP_PROXY ? new ProxyAgent(HTTP_PROXY) : undefined
@@ -45,11 +48,25 @@ type TriviaQuestion = {
   submitter: string
 }
 
+type BlogResult = {
+  data: {
+    blogEntries: {
+      id: string
+      story: string
+      title: string
+      message: string
+      imageMimeType: string
+      imageFileExtension: string
+      createdAt: string
+    }[]
+  }
+}
+
 void (async () => {
   const response = await fetch("https://api.gazatu.xyz/trivia/questions?shuffled=false", {
     agent: httpProxyAgent,
   })
-  const questions = await response.json() as TriviaQuestion[]
+  const responseJson = await response.json() as TriviaQuestion[]
 
   try {
     await useDatabaseApi(async dbApi => {
@@ -59,7 +76,7 @@ void (async () => {
         await dbApi.remove()
           .from(TriviaCategorySQL)
 
-        for (const question of questions) {
+        for (const question of responseJson) {
           question.category = categoryAliases[question.category] ?? question.category
 
           let categoryId = undefined as string | undefined
@@ -93,6 +110,84 @@ void (async () => {
               questionId: id!,
               categoryId: categoryId!,
             })
+        }
+      })
+    })
+  } finally {
+    databaseConnections.clear()
+  }
+
+  const responseBlog = await fetch("https://api.gazatu.xyz/graphql", {
+    agent: httpProxyAgent,
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `
+        query {
+          blogEntries {
+            id
+            story
+            title
+            message
+            imageMimeType
+            imageFileExtension
+            createdAt
+          }
+        }
+      `,
+    }),
+  })
+  const responseBlogJson = await responseBlog.json() as BlogResult
+
+  try {
+    const imagesPath = `${projectDir}/data/files/blog/images`
+    const previewsPath = `${projectDir}/data/files/blog/previews`
+
+    try {
+      await rm(imagesPath, { recursive: true, force: true })
+      await rm(previewsPath, { recursive: true, force: true })
+    } catch {
+      // ignore
+    }
+
+    await mkdir(imagesPath, { recursive: true })
+    await mkdir(previewsPath, { recursive: true })
+
+    await useDatabaseApi(async dbApi => {
+      await dbApi.transaction(async () => {
+        await dbApi.remove()
+          .from(BlogEntrySQL)
+
+        for (const blogEntry of responseBlogJson.data.blogEntries) {
+          if (!blogEntry.imageFileExtension) {
+            continue
+          }
+
+          try {
+            const image = await fetch(`https://api.gazatu.xyz/blog/entries/${blogEntry.id}/image.${blogEntry.imageFileExtension}`, {
+              agent: httpProxyAgent,
+            }).then(r => r.arrayBuffer())
+            const preview = await fetch(`https://api.gazatu.xyz/blog/entries/${blogEntry.id}/preview.${blogEntry.imageFileExtension}`, {
+              agent: httpProxyAgent,
+            }).then(r => r.arrayBuffer())
+
+            const [{ id }] = await dbApi.of(BlogEntrySQL)
+              .save({
+                story: blogEntry.story,
+                title: blogEntry.title,
+                message: blogEntry.message,
+                imageMimeType: blogEntry.imageMimeType,
+                imageFileExtension: blogEntry.imageFileExtension,
+                createdAt: blogEntry.createdAt,
+              })
+
+            await writeFile(`${imagesPath}/${id}.${blogEntry.imageFileExtension}`, Buffer.from(image))
+            await writeFile(`${previewsPath}/${id}.${blogEntry.imageFileExtension}`, Buffer.from(preview))
+          } catch (error) {
+            console.warn(error)
+          }
         }
       })
     })

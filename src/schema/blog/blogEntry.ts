@@ -1,10 +1,11 @@
 import { Infer, nullable, object, optional, size, string } from "superstruct"
-import gqlResolver, { gqlArgsInput, gqlArray, gqlNullable, gqlString, gqlType } from "../../lib/gqlResolver.js"
+import gqlResolver, { gqlArgsInput, gqlNullable, gqlString, gqlType } from "../../lib/gqlResolver.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import assertAuth from "../assertAuth.js"
 import assertInput from "../assertInput.js"
 import { Complexity } from "../graphql-complexity.js"
+import { findManyPaginated, gqlPagination, gqlPaginationArgs } from "../pagination.js"
 import type { SchemaFields } from "../schema.js"
 
 export const BlogEntrySchema = object({
@@ -56,14 +57,16 @@ export const BlogEntryResolver: SchemaFields = {
         complexity: Complexity.SIMPLE_QUERY,
       },
     }),
-    blogEntryList: gqlResolver({
-      type: gqlArray(gqlType(BlogEntryGraphQL)),
-      args: gqlArgsInput("BlogEntryListArgs", {
+    blogEntryListConnection: gqlResolver({
+      type: gqlPagination(gqlType(BlogEntryGraphQL)),
+      args: gqlArgsInput("BlogEntryListConnectionArgs", {
+        ...gqlPaginationArgs,
       }),
       resolve: async (self, { args }, ctx) => {
-        const result = await ctx.db
+        const query = ctx.db
           .select(BlogEntrySQL)
-          .findMany(BlogEntrySQL)
+
+        const result = await findManyPaginated(query, args, BlogEntrySQL)
         return result
       },
       extensions: {
