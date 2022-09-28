@@ -949,7 +949,7 @@ export const sqlField = (strings: TemplateStringsArray) => {
   }
 }
 
-export abstract class DatabaseRepository {
+export abstract class DatabaseAccess {
   abstract select(fields?: ((string | SqlExpr | SqlField) | [(string | SqlExpr | SqlField), string])[] | SQLEntity): Selector
 
   abstract insert(): Inserter
@@ -974,15 +974,15 @@ export abstract class DatabaseRepository {
     findOne: new Map<string | SQLEntity, Map<string, DataLoader<unknown, any>>>(),
   }
 
-  clearCache() {
-    for (const dataloaderMap of Object.values(this._dataloaders)) {
-      for (const [, dataloaders] of dataloaderMap) {
-        for (const [, dataloader] of dataloaders) {
-          dataloader.clearAll()
-        }
-      }
-    }
-  }
+  // clearCache() {
+  //   for (const dataloaderMap of Object.values(this._dataloaders)) {
+  //     for (const [, dataloaders] of dataloaderMap) {
+  //       for (const [, dataloader] of dataloaders) {
+  //         dataloader.clearAll()
+  //       }
+  //     }
+  //   }
+  // }
 
   private createTableAccess<T extends Record<string, any> = Record<string, any>>(table: string | SQLEntity<T>) {
     const hasIdColumn = (() => {
@@ -1039,7 +1039,7 @@ export abstract class DatabaseRepository {
 
           return keys
             .map(key => map.get(key) ?? 0)
-        }, { maxBatchSize: 128 })
+        }, { maxBatchSize: 128, cache: false })
 
         record.set(condition.query, dataloader)
       }
@@ -1092,7 +1092,7 @@ export abstract class DatabaseRepository {
 
           return values
             .map(value => list.filter(e => e[condition.left.rawName] === value))
-        }, { maxBatchSize: 128 })
+        }, { maxBatchSize: 128, cache: false })
 
         record.set(condition.query, dataloader)
       }
@@ -1149,7 +1149,7 @@ export abstract class DatabaseRepository {
 
           return values
             .map(value => map.get(value))
-        }, { maxBatchSize: 128 })
+        }, { maxBatchSize: 128, cache: false })
 
         record.set(condition.query, dataloader)
       }
@@ -1312,7 +1312,7 @@ export abstract class DatabaseRepository {
     }
   }
 
-  private _tableAccessCache = new Map<string | SQLEntity<any>, ReturnType<DatabaseRepository["createTableAccess"]>>()
+  private _tableAccessCache = new Map<string | SQLEntity<any>, ReturnType<DatabaseAccess["createTableAccess"]>>()
 
   of<T extends Record<string, any> = Record<string, any>>(table: string | SQLEntity<T>) {
     const tableAccess = this._tableAccessCache.get(table)

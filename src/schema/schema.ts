@@ -1,6 +1,6 @@
 import { GraphQLFieldConfig, GraphQLObjectType, GraphQLSchema } from "graphql"
 import { ParameterizedContext } from "koa"
-import { DatabaseRepository } from "../lib/querybuilder.js"
+import { DatabaseAccess } from "../lib/querybuilder.js"
 import { userResolver } from "./misc/user.js"
 import { triviaCategoryResolver } from "./trivia/category.js"
 import { triviaSchemaExtensionResolver } from "./trivia/schema-ext.js"
@@ -9,7 +9,7 @@ import { triviaReportResolver } from "./trivia/report.js"
 
 export type SchemaContext = {
   http: ParameterizedContext
-  db: DatabaseRepository
+  db: DatabaseAccess
   cache: {
     [key: string | symbol]: any
   }

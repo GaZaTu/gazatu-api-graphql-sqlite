@@ -8,9 +8,9 @@ import { readFile } from "node:fs/promises"
 import { any, Infer, nullable, object, optional, record, string } from "superstruct"
 import { projectDir } from "../lib/moduleDir.js"
 import { qString } from "../lib/query-parsing.js"
+import database from "./database.js"
 import { Complexity } from "./graphql-complexity.js"
 import schema, { SchemaContext } from "./schema.js"
-import useDatabaseApi from "./useDatabaseApi.js"
 
 const GraphQLRequestSchema = object({
   query: string(),
@@ -89,52 +89,30 @@ export const getCompiledGraphQLQuery = <T>(request: Omit<GraphQLRequest, "variab
     return result as ExecutionResult<T>
   }
 
-  // const result: CompiledQueryFunc = (root, context, variables) => {
-  //   assertComplexity(variables)
-
-  //   const result = execute({
-  //     schema,
-  //     document,
-  //     variableValues: variables,
-  //     operationName: operationName,
-  //     contextValue: context,
-  //     rootValue: root,
-  //   })
-  //   return result
-  // }
-
   graphqlQueryCache.set(cacheKey, result)
   return result
 }
 
-export const executeGraphQLWithDatabase = async <T = any>(request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }, options?: { db?: SchemaContext["db"], throwErrors?: boolean, ignoreComplexity?: boolean }) => {
+export const executeGraphQLWithDatabase = async <T = any>(request: GraphQLRequest & { context: Omit<SchemaContext, "cache" | "db"> }, options?: { throwErrors?: boolean, ignoreComplexity?: boolean }) => {
   const execute = getCompiledGraphQLQuery<T>(request)
 
-  const handler = async (db: SchemaContext["db"]) => {
-    const context = {
-      ...request.context,
-      db,
-      cache: {},
-    }
-
-    const variables = {
-      ...request.variables,
-      ...(options?.ignoreComplexity ? { [ignoreComplexity]: true } : {}),
-    }
-
-    const result = await execute({}, context, variables)
-    if (options?.throwErrors && result.errors?.[0]) {
-      throw result.errors?.[0]
-    }
-
-    return result
+  const context = {
+    ...request.context,
+    db: database,
+    cache: {},
   }
 
-  if (options?.db) {
-    return await handler(options.db)
-  } else {
-    return await useDatabaseApi(handler)
+  const variables = {
+    ...request.variables,
+    ...(options?.ignoreComplexity ? { [ignoreComplexity]: true } : {}),
   }
+
+  const result = await execute({}, context, variables)
+  if (options?.throwErrors && result.errors?.[0]) {
+    throw result.errors?.[0]
+  }
+
+  return result
 }
 
 export const handleGraphQLRequest = async (ctx: SchemaContext["http"], requestObject: unknown) => {

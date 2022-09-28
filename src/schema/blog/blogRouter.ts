@@ -4,15 +4,13 @@ import { mkdir } from "fs/promises"
 import sharp from "sharp"
 import { projectDir } from "../../lib/moduleDir.js"
 import { assertAuthHttp } from "../assertAuth.js"
-import useDatabaseApi from "../useDatabaseApi.js"
+import database from "../database.js"
 import { BlogEntry, BlogEntrySQL } from "./blogEntry.js"
 
 export const router = new Router({ prefix: "/blog" })
 
 router.get("/entries/:id/image.:ext", async ctx => {
-  const blogEntry = await useDatabaseApi(async dbApi => {
-    return await dbApi.of(BlogEntrySQL).findOneById(ctx.params.id)
-  })
+  const blogEntry = await database.of(BlogEntrySQL).findOneById(ctx.params.id)
   if (!blogEntry) {
     ctx.status = 404
     return
@@ -23,9 +21,7 @@ router.get("/entries/:id/image.:ext", async ctx => {
 })
 
 router.get("/entries/:id/preview.:ext", async ctx => {
-  const blogEntry = await useDatabaseApi(async dbApi => {
-    return await dbApi.of(BlogEntrySQL).findOneById(ctx.params.id)
-  })
+  const blogEntry = await database.of(BlogEntrySQL).findOneById(ctx.params.id)
   if (!blogEntry?.imageMimeType) {
     ctx.status = 404
     return
@@ -38,9 +34,7 @@ router.get("/entries/:id/preview.:ext", async ctx => {
 router.post("/entries/:id/image.:ext", async ctx => {
   await assertAuthHttp(ctx, ["admin"])
 
-  const blogEntry = await useDatabaseApi(async dbApi => {
-    return await dbApi.of(BlogEntrySQL).findOneById(ctx.params.id)
-  })
+  const blogEntry = await database.of(BlogEntrySQL).findOneById(ctx.params.id)
   if (!blogEntry) {
     ctx.status = 400
     return
@@ -65,9 +59,7 @@ router.post("/entries/:id/image.:ext", async ctx => {
       .on("close", resolve)
   })
 
-  await useDatabaseApi(async dbApi => {
-    await dbApi.of(BlogEntrySQL).save(blogEntry)
-  })
+  database.of(BlogEntrySQL).save(blogEntry)
 
   ctx.status = 204
 })

@@ -1,5 +1,5 @@
 import { ulid } from "ulid"
-import { DatabaseRepository, Deleter, Inserter, QueryBuilderData, QueryBuilderUpsertMode, Selector, SQLEntity, SqlExpr, SqlField, SqlOperator, Updater } from "./querybuilder.js"
+import { DatabaseAccess, Deleter, Inserter, QueryBuilderData, QueryBuilderUpsertMode, Selector, SQLEntity, SqlExpr, SqlField, SqlOperator, Updater } from "./querybuilder.js"
 
 const createSelectScript = (data: QueryBuilderData) => {
   let script = "SELECT"
@@ -127,7 +127,7 @@ const createDeleteScript = (data: QueryBuilderData) => {
   return script
 }
 
-export class SQLite3Repository extends DatabaseRepository {
+export class SQLite3Access extends DatabaseAccess {
   constructor(
     private _exec: (query: string, values: any[]) => Promise<Record<string, any>[]>,
     private _execUpdate: (query: string, values: any[]) => Promise<unknown> = _exec,

@@ -48,7 +48,7 @@ WHERE ${n2mTable.schema[parentId]} IN ${[...Array(maxBatchSize).keys()]}
         .map(id => {
           return n2m.filter(s => (s as any)[parentId] === id)
         })
-    }, { maxBatchSize })
+    }, { maxBatchSize, cache: false })
     cache[symbol] = dataloader
   }
 

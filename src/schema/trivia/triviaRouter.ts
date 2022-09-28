@@ -1,8 +1,8 @@
 import Router from "@koa/router"
 import createKoaSSEStream from "../../lib/createKoaSSEStream.js"
 import { qArray, qBoolean, qNumber, qString } from "../../lib/query-parsing.js"
+import { databaseHooks } from "../database.js"
 import { executeGraphQLWithDatabase } from "../graphqlRouter.js"
-import { databaseUpdateHooks } from "../useDatabaseApi.js"
 import { triviaEventsOTPSet, TriviaQuestion } from "./question.js"
 
 const triviaRouter = new Router({ prefix: "/trivia" })
@@ -19,21 +19,21 @@ triviaRouter.get("/events", async ctx => {
 
   const stream = createKoaSSEStream(ctx)
 
-  const listener = (type: string, database: string, table: string, rowid: number) => {
-    if (!table.includes("Trivia") || table.includes("FTS")) {
+  const listener = (ev: { type: string, table: string }) => {
+    if (!ev.table.includes("Trivia") || ev.table.includes("FTS")) {
       return
     }
 
     try {
-      stream.sendEvent("", { type, table })
+      stream.sendEvent("", ev)
     } catch {
       stream.destroy()
     }
   }
 
-  databaseUpdateHooks.on("change", listener)
+  databaseHooks.on("change", listener)
   stream.on("close", () => {
-    databaseUpdateHooks.off("change", listener)
+    databaseHooks.off("change", listener)
   })
 })
 

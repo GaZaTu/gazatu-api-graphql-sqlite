@@ -3,7 +3,6 @@ import { mkdir, writeFile } from "node:fs/promises"
 import gqlToTs from "./lib/gqlToTs.js"
 import { projectDir } from "./lib/moduleDir.js"
 import schema from "./schema/schema.js"
-import useDatabaseApi from "./schema/useDatabaseApi.js"
 import { listen } from "./server.js"
 
 await mkdir(`${projectDir}/data`, { recursive: true })
@@ -13,9 +12,5 @@ await writeFile(`${projectDir}/data/schema.gql`, schemaAsGQL)
 
 const schemaAsTS = gqlToTs(schemaAsGQL)
 await writeFile(`${projectDir}/data/schema.gql.ts`, schemaAsTS)
-
-await useDatabaseApi(async dbApi => {
-  await dbApi.exec("PRAGMA wal_checkpoint(PASSIVE)", [])
-})
 
 await listen()

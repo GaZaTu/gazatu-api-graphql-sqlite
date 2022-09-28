@@ -6,7 +6,6 @@ import https from "https"
 import Koa from "koa"
 import body from "koa-body"
 import json from "koa-json"
-import jsonError from "koa-json-error"
 import logger from "koa-logger"
 import graphqlRouter from "./schema/graphqlRouter.js"
 import triviaRouter from "./schema/trivia/triviaRouter.js"
@@ -66,15 +65,24 @@ export const createKoa = (middlewares: Koa.Middleware<any, any>[]) => {
     allowHeaders: ["Content-Type", "Authorization"],
   }))
 
-  koa.use(jsonError({
-    format: err => JSON.stringify({
-      name: err.name,
-      message: err.message,
-      type: (err as any).type,
-      status: err.status,
-      stack: (process.env.NODE_ENV !== "production") ? err.stack : undefined,
-    }, undefined, (process.env.NODE_ENV !== "production") ? "  " : undefined),
-  }))
+  koa.use(async (ctx, next) => {
+    try {
+      await next()
+
+      if (!ctx.status || (ctx.status === 404 && !ctx.body)) {
+        ctx.throw(404)
+      }
+    } catch (err: any) {
+      ctx.status = err.status ?? 500
+      ctx.type = "application/json"
+      ctx.body = JSON.stringify({
+        name: err.name,
+        message: err.message,
+        status: err.status,
+        stack: (process.env.NODE_ENV !== "production") ? err.stack : undefined,
+      }, undefined, (process.env.NODE_ENV !== "production") ? "  " : undefined)
+    }
+  })
 
   koa.use(body())
 

@@ -73,6 +73,9 @@ export const [
   TriviaQuestionSQL,
 ] = superstructToSQL(TriviaQuestionSchema, {
   name: "TriviaQuestion",
+  skip: [
+    "categories",
+  ],
 })
 
 export type TriviaQuestion = Infer<typeof TriviaQuestionSchema>
@@ -250,8 +253,10 @@ export const triviaQuestionResolver: SchemaFields = {
             updatedByUserId: user?.id,
           })
 
-        await ctx.db.of(N2MTriviaQuestionTriviaCategorySQL)
-          .removeMany(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.questionId} = ${result.id}`)
+        if (_input.id) {
+          await ctx.db.of(N2MTriviaQuestionTriviaCategorySQL)
+            .removeMany(sql`${N2MTriviaQuestionTriviaCategorySQL.schema.questionId} = ${result.id}`)
+        }
 
         for (const category of categories) {
           await ctx.db.of(N2MTriviaQuestionTriviaCategorySQL)

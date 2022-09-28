@@ -9,7 +9,7 @@ CREATE TABLE "AnalyticsError" (
   PRIMARY KEY ("id")
 );
 
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('AnalyticsError', 'createdAt');
+SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('AnalyticsError', 'createdAt');
 -- END AnalyticsError --
 
 -- BEGIN BlogEntry --
@@ -26,24 +26,9 @@ CREATE TABLE "BlogEntry" (
   PRIMARY KEY ("id")
 );
 
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('BlogEntry', 'createdAt');
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('BlogEntry', 'updatedAt');
+SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('BlogEntry', 'createdAt');
+SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('BlogEntry', 'updatedAt');
 -- END BlogEntry --
-
--- BEGIN Change --
-CREATE TABLE "Change" (
-  "id" BIT(128) NOT NULL,
-  "kind" CHAR(1) CHECK ("kind" IN ('+','-','*')) NOT NULL,
-  "targetEntity" VARCHAR(256) NOT NULL,
-  "targetId" BIT(128),
-  "targetColumn" VARCHAR(256),
-  "newValue" TEXT,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY ("id")
-);
-
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('Change', 'createdAt');
--- END Change --
 
 -- BEGIN UserRole --
 CREATE TABLE "UserRole" (
@@ -66,8 +51,8 @@ CREATE TABLE "User" (
   PRIMARY KEY ("id")
 );
 
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('User', 'createdAt');
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('User', 'updatedAt');
+SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('User', 'createdAt');
+SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('User', 'updatedAt');
 -- END User --
 
 -- BEGIN N2M_User_UserRole --
@@ -101,8 +86,8 @@ CREATE TABLE "TriviaCategory" (
   PRIMARY KEY ("id")
 );
 
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaCategory', 'createdAt');
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaCategory', 'updatedAt');
+SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaCategory', 'createdAt');
+SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaCategory', 'updatedAt');
 -- END TriviaCategory --
 
 -- BEGIN TriviaQuestion --
@@ -124,10 +109,8 @@ CREATE TABLE "TriviaQuestion" (
   PRIMARY KEY ("id")
 );
 
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaQuestion', 'createdAt');
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaQuestion', 'updatedAt');
-
-CREATE INDEX "idx_TriviaQuestion_categoryId" ON "TriviaQuestion" ("categoryId");
+SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaQuestion', 'createdAt');
+SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaQuestion', 'updatedAt');
 
 CREATE VIRTUAL TABLE "TriviaQuestionFTS" USING fts5 (
   "question",
@@ -146,7 +129,7 @@ INSERT INTO "TriviaQuestionFTS" (
   'rank',
   'bm25(4, 4, 2, 2, 1, 1)'
 );
-!!CREATE_FTS_SYNC_TRIGGERS('TriviaQuestion', 'TriviaQuestionFTS');
+SELECT __CREATE_FTS_SYNC_TRIGGERS('TriviaQuestion', 'TriviaQuestionFTS');
 -- END TriviaQuestion --
 
 -- BEGIN N2M_TriviaQuestion_TriviaCategory --
@@ -161,7 +144,7 @@ CREATE TABLE "N2M_TriviaQuestion_TriviaCategory" (
 CREATE INDEX "idx_N2M_TriviaQuestion_TriviaCategory_questionId" ON "N2M_TriviaQuestion_TriviaCategory" ("questionId");
 CREATE INDEX "idx_N2M_TriviaQuestion_TriviaCategory_categoryId" ON "N2M_TriviaQuestion_TriviaCategory" ("categoryId");
 
-!!CREATE_FTS_SYNC_TRIGGERS_N2M('TriviaQuestion', 'TriviaQuestionFTS', 'N2M_TriviaQuestion_TriviaCategory', 'id', 'questionId');
+SELECT __CREATE_FTS_SYNC_TRIGGERS_N2M('TriviaQuestion', 'TriviaQuestionFTS', 'N2M_TriviaQuestion_TriviaCategory', 'id', 'questionId');
 -- END N2M_TriviaQuestion_TriviaCategory --
 
 -- BEGIN TriviaReport --
@@ -178,5 +161,7 @@ CREATE TABLE "TriviaReport" (
   PRIMARY KEY ("id")
 );
 
-!!CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaReport', 'createdAt');
+SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaReport', 'createdAt');
+
+CREATE INDEX "idx_TriviaReport_questionId" ON "TriviaReport" ("questionId");
 -- END TriviaReport --

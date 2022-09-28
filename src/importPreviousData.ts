@@ -4,9 +4,9 @@ import ProxyAgent from "proxy-agent"
 import { projectDir } from "./lib/moduleDir.js"
 import { sql } from "./lib/querybuilder.js"
 import { BlogEntrySQL } from "./schema/blog/blogEntry.js"
+import database from "./schema/database.js"
 import { TriviaCategorySQL } from "./schema/trivia/category.js"
 import { N2MTriviaQuestionTriviaCategorySQL, TriviaQuestionSQL } from "./schema/trivia/question.js"
-import useDatabaseApi, { databaseConnections } from "./schema/useDatabaseApi.js"
 
 const HTTP_PROXY = process.env.HTTP_PROXY
 const httpProxyAgent = HTTP_PROXY ? new ProxyAgent(HTTP_PROXY) : undefined
@@ -67,54 +67,48 @@ const response = await fetch("https://api.gazatu.xyz/trivia/questions?shuffled=f
 })
 const responseJson = await response.json() as TriviaQuestion[]
 
-try {
-  await useDatabaseApi(async dbApi => {
-    await dbApi.transaction(async () => {
-      await dbApi.remove()
-        .from(TriviaQuestionSQL)
-      await dbApi.remove()
-        .from(TriviaCategorySQL)
+await database.transaction(async () => {
+  await database.remove()
+    .from(TriviaQuestionSQL)
+  await database.remove()
+    .from(TriviaCategorySQL)
 
-      for (const question of responseJson) {
-        question.category = categoryAliases[question.category] ?? question.category
+  for (const question of responseJson) {
+    question.category = categoryAliases[question.category] ?? question.category
 
-        let categoryId = undefined as string | undefined
-        try {
-          const [{ id }] = await dbApi.of(TriviaCategorySQL)
-            .save({
-              name: question.category,
-              verified: true,
-              disabled: false,
-            })
-          categoryId = id!
-        } catch {
-          const [{ id }] = await dbApi.of(TriviaCategorySQL)
-            .findMany(sql`${TriviaCategorySQL.schema.name} = ${question.category}`)
-          categoryId = id!
-        }
+    let categoryId = undefined as string | undefined
+    try {
+      const [{ id }] = await database.of(TriviaCategorySQL)
+        .save({
+          name: question.category,
+          verified: true,
+          disabled: false,
+        })
+      categoryId = id!
+    } catch {
+      const [{ id }] = await database.of(TriviaCategorySQL)
+        .findMany(sql`${TriviaCategorySQL.schema.name} = ${question.category}`)
+      categoryId = id!
+    }
 
-        const [{ id }] = await dbApi.of(TriviaQuestionSQL)
-          .save({
-            question: question.question,
-            answer: question.answer,
-            hint1: question.hint1 || null,
-            hint2: question.hint2 || null,
-            submitter: question.submitter || null,
-            verified: true,
-            disabled: false,
-          })
+    const [{ id }] = await database.of(TriviaQuestionSQL)
+      .save({
+        question: question.question,
+        answer: question.answer,
+        hint1: question.hint1 || null,
+        hint2: question.hint2 || null,
+        submitter: question.submitter || null,
+        verified: true,
+        disabled: false,
+      })
 
-        await dbApi.of(N2MTriviaQuestionTriviaCategorySQL)
-          .save({
-            questionId: id!,
-            categoryId: categoryId!,
-          })
-      }
-    })
-  })
-} finally {
-  databaseConnections.clear()
-}
+    await database.of(N2MTriviaQuestionTriviaCategorySQL)
+      .save({
+        questionId: id!,
+        categoryId: categoryId!,
+      })
+  }
+})
 
 const responseBlog = await fetch("https://api.gazatu.xyz/graphql", {
   agent: httpProxyAgent,
@@ -140,56 +134,54 @@ const responseBlog = await fetch("https://api.gazatu.xyz/graphql", {
 })
 const responseBlogJson = await responseBlog.json() as BlogResult
 
+const imagesPath = `${projectDir}/data/files/blog/images`
+const previewsPath = `${projectDir}/data/files/blog/previews`
+
 try {
-  const imagesPath = `${projectDir}/data/files/blog/images`
-  const previewsPath = `${projectDir}/data/files/blog/previews`
-
-  try {
-    await rm(imagesPath, { recursive: true, force: true })
-    await rm(previewsPath, { recursive: true, force: true })
-  } catch {
-    // ignore
-  }
-
-  await mkdir(imagesPath, { recursive: true })
-  await mkdir(previewsPath, { recursive: true })
-
-  await useDatabaseApi(async dbApi => {
-    await dbApi.transaction(async () => {
-      await dbApi.remove()
-        .from(BlogEntrySQL)
-
-      for (const blogEntry of responseBlogJson.data.blogEntries) {
-        if (!blogEntry.imageFileExtension) {
-          continue
-        }
-
-        try {
-          const image = await fetch(`https://api.gazatu.xyz/blog/entries/${blogEntry.id}/image.${blogEntry.imageFileExtension}`, {
-            agent: httpProxyAgent,
-          }).then(r => r.arrayBuffer())
-          const preview = await fetch(`https://api.gazatu.xyz/blog/entries/${blogEntry.id}/preview.${blogEntry.imageFileExtension}`, {
-            agent: httpProxyAgent,
-          }).then(r => r.arrayBuffer())
-
-          const [{ id }] = await dbApi.of(BlogEntrySQL)
-            .save({
-              story: blogEntry.story,
-              title: blogEntry.title,
-              message: blogEntry.message,
-              imageMimeType: blogEntry.imageMimeType,
-              imageFileExtension: blogEntry.imageFileExtension,
-              createdAt: blogEntry.createdAt,
-            })
-
-          await writeFile(`${imagesPath}/${id}.${blogEntry.imageFileExtension}`, Buffer.from(image))
-          await writeFile(`${previewsPath}/${id}.${blogEntry.imageFileExtension}`, Buffer.from(preview))
-        } catch (error) {
-          console.warn(error)
-        }
-      }
-    })
-  })
-} finally {
-  databaseConnections.clear()
+  await rm(imagesPath, { recursive: true, force: true })
+  await rm(previewsPath, { recursive: true, force: true })
+} catch {
+  // ignore
 }
+
+await mkdir(imagesPath, { recursive: true })
+await mkdir(previewsPath, { recursive: true })
+
+await database.transaction(async () => {
+  await database.remove()
+    .from(BlogEntrySQL)
+
+  for (const blogEntry of responseBlogJson.data.blogEntries) {
+    if (!blogEntry.imageFileExtension) {
+      continue
+    }
+
+    try {
+      const image = await fetch(`https://api.gazatu.xyz/blog/entries/${blogEntry.id}/image.${blogEntry.imageFileExtension}`, {
+        agent: httpProxyAgent,
+      }).then(r => r.arrayBuffer())
+      const preview = await fetch(`https://api.gazatu.xyz/blog/entries/${blogEntry.id}/preview.${blogEntry.imageFileExtension}`, {
+        agent: httpProxyAgent,
+      }).then(r => r.arrayBuffer())
+
+      const [{ id }] = await database.of(BlogEntrySQL)
+        .save({
+          story: blogEntry.story,
+          title: blogEntry.title,
+          message: blogEntry.message,
+          imageMimeType: blogEntry.imageMimeType,
+          imageFileExtension: blogEntry.imageFileExtension,
+          createdAt: blogEntry.createdAt,
+        })
+
+      await writeFile(`${imagesPath}/${id}.${blogEntry.imageFileExtension}`, Buffer.from(image))
+      await writeFile(`${previewsPath}/${id}.${blogEntry.imageFileExtension}`, Buffer.from(preview))
+    } catch (error) {
+      console.warn(error)
+    }
+  }
+})
+
+await database.exec("PRAGMA optimize", [])
+
+process.exit(0)

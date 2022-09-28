@@ -10,6 +10,12 @@ const moduleDir = (importMetaUrl: string) => {
 
 export default moduleDir
 
-const __dirname = moduleDir(import.meta.url)
+export const projectDir = resolve(`${moduleDir(import.meta.url)}/../..`)
 
-export const projectDir = resolve(`${__dirname}/../..`)
+export const modulePath = (importMetaUrl: string) => {
+  let __dirname = new URL(importMetaUrl).pathname
+  if (__dirname[0] === "/" && __dirname[2] === ":") {
+    __dirname = __dirname.slice(1)
+  }
+  return __dirname
+}
