@@ -72,6 +72,9 @@ export const [
   UserSQL,
 ] = superstructToSQL(UserSchema, {
   name: "User",
+  skip: [
+    "roles",
+  ],
 })
 
 export type User = Infer<typeof UserSchema>
