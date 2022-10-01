@@ -1,4 +1,4 @@
-import { Infer, nullable, object, optional, size, string } from "superstruct"
+import { Infer, integer, nullable, object, optional, size, string } from "superstruct"
 import gqlResolver, { gqlArgsInput, gqlArray, gqlNullable, gqlString, gqlType, gqlVoid } from "../../lib/gqlResolver.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
@@ -14,6 +14,8 @@ export const BlogEntrySchema = object({
   title: size(string(), 1, 256),
   message: optional(nullable(string())),
   imageFileExtension: optional(nullable(size(string(), 1, 32))),
+  imageWidth: optional(nullable(integer())),
+  imageHeight: optional(nullable(integer())),
   createdAt: optional(nullable(string())),
 })
 

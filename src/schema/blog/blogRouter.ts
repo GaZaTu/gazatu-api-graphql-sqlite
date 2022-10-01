@@ -1,6 +1,6 @@
 import Router from "@koa/router"
 import { createReadStream, existsSync } from "node:fs"
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir } from "node:fs/promises"
 import sharp from "sharp"
 import { projectDir } from "../../lib/moduleDir.js"
 import { assertAuthHttp } from "../assertAuth.js"
@@ -84,14 +84,21 @@ export const writeBlogEntryImage = async (blogEntry: BlogEntry, imageSource: Buf
       .webp({ effort: 6, quality: 80 })
       .toFile(imagePath)
   } else {
-    await writeFile(imagePath, imageSource)
+    await sharp(imageSource)
+      .rotate()
+      .toFile(imagePath)
   }
 
   await sharp(imagePath)
-    .rotate()
     .resize(256)
     .webp({ effort: 6, quality: 50 })
     .toFile(previewPath)
+
+  const imageMetadata = await sharp(imagePath)
+    .metadata()
+
+  blogEntry.imageWidth = imageMetadata.width
+  blogEntry.imageHeight = imageMetadata.height
 
   await database.of(BlogEntrySQL)
     .save(blogEntry)
