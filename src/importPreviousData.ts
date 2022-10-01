@@ -65,7 +65,7 @@ type BlogResult = {
   }
 }
 
-if (false) {
+if (true) {
   const response = await fetch("https://api.gazatu.xyz/trivia/questions?shuffled=false", {
     agent: httpProxyAgent,
   })
