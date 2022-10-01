@@ -1,6 +1,6 @@
 -- BEGIN AnalyticsError --
 CREATE TABLE "AnalyticsError" (
-  "id" BIT(128) NOT NULL,
+  "id" VARCHAR(26) NOT NULL,
   "type" VARCHAR(128) NOT NULL,
   "url" VARCHAR(512) NOT NULL,
   "userAgent" VARCHAR(512) NOT NULL,
@@ -14,12 +14,13 @@ SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('AnalyticsError', 'createdAt');
 
 -- BEGIN BlogEntry --
 CREATE TABLE "BlogEntry" (
-  "id" BIT(128) NOT NULL,
+  "id" VARCHAR(26) NOT NULL,
   "story" VARCHAR(256) NOT NULL,
   "title" VARCHAR(256) NOT NULL,
   "message" TEXT,
-  "imageMimeType" VARCHAR(128),
   "imageFileExtension" VARCHAR(32),
+  "imageWidth" INTEGER,
+  "imageHeight" INTEGER,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE ("story", "title"),
@@ -32,7 +33,7 @@ SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('BlogEntry', 'updatedAt');
 
 -- BEGIN UserRole --
 CREATE TABLE "UserRole" (
-  "id" BIT(128) NOT NULL,
+  "id" VARCHAR(26) NOT NULL,
   "name" VARCHAR(256) NOT NULL,
   "description" VARCHAR(512),
   UNIQUE ("name"),
@@ -42,7 +43,7 @@ CREATE TABLE "UserRole" (
 
 -- BEGIN User --
 CREATE TABLE "User" (
-  "id" BIT(128) NOT NULL,
+  "id" VARCHAR(26) NOT NULL,
   "username" VARCHAR(256) NOT NULL,
   "password" BIT(256) NOT NULL,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -57,8 +58,8 @@ SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('User', 'updatedAt');
 
 -- BEGIN N2M_User_UserRole --
 CREATE TABLE "N2M_User_UserRole" (
-  "userId" BIT(128) NOT NULL,
-  "userRoleId" BIT(128) NOT NULL,
+  "userId" VARCHAR(26) NOT NULL,
+  "userRoleId" VARCHAR(26) NOT NULL,
   FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE,
   FOREIGN KEY ("userRoleId") REFERENCES "UserRole" ("id") ON DELETE CASCADE,
   PRIMARY KEY ("userId", "userRoleId")
@@ -70,16 +71,16 @@ CREATE INDEX "idx_N2M_User_UserRole_userRoleId" ON "N2M_User_UserRole" ("userRol
 
 -- BEGIN TriviaCategory --
 CREATE TABLE "TriviaCategory" (
-  "id" BIT(128) NOT NULL,
+  "id" VARCHAR(26) NOT NULL,
   "name" VARCHAR(256) NOT NULL,
   "description" VARCHAR(512),
   "submitter" VARCHAR(256),
-  "submitterUserId" BIT(128),
-  "verified" BOOLEAN DEFAULT false,
-  "disabled" BOOLEAN DEFAULT false,
+  "submitterUserId" VARCHAR(26),
+  "verified" BOOLEAN NOT NULL DEFAULT false,
+  "disabled" BOOLEAN NOT NULL DEFAULT false,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedByUserId" BIT(128),
+  "updatedByUserId" VARCHAR(26),
   UNIQUE ("name"),
   FOREIGN KEY ("submitterUserId") REFERENCES "User" ("id") ON DELETE SET NULL,
   FOREIGN KEY ("updatedByUserId") REFERENCES "User" ("id") ON DELETE SET NULL,
@@ -92,18 +93,18 @@ SELECT __CREATE_ISO_TIMESTAMP_TRIGGERS('TriviaCategory', 'updatedAt');
 
 -- BEGIN TriviaQuestion --
 CREATE TABLE "TriviaQuestion" (
-  "id" BIT(128) NOT NULL,
+  "id" VARCHAR(26) NOT NULL,
   "question" VARCHAR(512) NOT NULL,
   "answer" VARCHAR(256) NOT NULL,
   "hint1" VARCHAR(256),
   "hint2" VARCHAR(256),
   "submitter" VARCHAR(256),
-  "submitterUserId" BIT(128),
-  "verified" BOOLEAN DEFAULT false,
-  "disabled" BOOLEAN DEFAULT false,
+  "submitterUserId" VARCHAR(26),
+  "verified" BOOLEAN NOT NULL DEFAULT false,
+  "disabled" BOOLEAN NOT NULL DEFAULT false,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedByUserId" BIT(128),
+  "updatedByUserId" VARCHAR(26),
   FOREIGN KEY ("submitterUserId") REFERENCES "User" ("id") ON DELETE SET NULL,
   FOREIGN KEY ("updatedByUserId") REFERENCES "User" ("id") ON DELETE SET NULL,
   PRIMARY KEY ("id")
@@ -134,8 +135,8 @@ SELECT __CREATE_FTS_SYNC_TRIGGERS('TriviaQuestion', 'TriviaQuestionFTS');
 
 -- BEGIN N2M_TriviaQuestion_TriviaCategory --
 CREATE TABLE "N2M_TriviaQuestion_TriviaCategory" (
-  "questionId" BIT(128) NOT NULL,
-  "categoryId" BIT(128) NOT NULL,
+  "questionId" VARCHAR(26) NOT NULL,
+  "categoryId" VARCHAR(26) NOT NULL,
   FOREIGN KEY ("questionId") REFERENCES "TriviaQuestion" ("id") ON DELETE CASCADE,
   FOREIGN KEY ("categoryId") REFERENCES "TriviaCategory" ("id") ON DELETE CASCADE,
   PRIMARY KEY ("questionId", "categoryId")
@@ -149,11 +150,11 @@ SELECT __CREATE_FTS_SYNC_TRIGGERS_N2M('TriviaQuestion', 'TriviaQuestionFTS', 'N2
 
 -- BEGIN TriviaReport --
 CREATE TABLE "TriviaReport" (
-  "id" BIT(128) NOT NULL,
-  "questionId" BIT(128) NOT NULL,
+  "id" VARCHAR(26) NOT NULL,
+  "questionId" VARCHAR(26) NOT NULL,
   "message" VARCHAR(512) NOT NULL,
   "submitter" VARCHAR(256) NOT NULL,
-  "submitterUserId" BIT(128),
+  "submitterUserId" VARCHAR(26),
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE ("questionId", "submitter"),
   FOREIGN KEY ("questionId") REFERENCES "TriviaQuestion" ("id") ON DELETE CASCADE,

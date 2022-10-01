@@ -7,6 +7,7 @@ import Koa from "koa"
 import body from "koa-body"
 import json from "koa-json"
 import logger from "koa-logger"
+import { blogRouter } from "./schema/blog/blogRouter.js"
 import graphqlRouter from "./schema/graphqlRouter.js"
 import triviaRouter from "./schema/trivia/triviaRouter.js"
 
@@ -143,8 +144,9 @@ export const createHttpServer = (callback: (req: http.IncomingMessage, res: http
 
 export const listen = async () => {
   const middlewares = [
-    graphqlRouter.middleware(),
+    blogRouter.middleware(),
     triviaRouter.middleware(),
+    graphqlRouter.middleware(),
   ]
 
   const [, callback] = createKoa(middlewares)

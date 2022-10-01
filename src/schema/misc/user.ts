@@ -8,7 +8,6 @@ import { sql } from "../../lib/querybuilder.js"
 import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import assertAuth, { currentUser, hasAuth } from "../assertAuth.js"
-import { getN2MDataLoaderFromContext } from "../getDataLoaderFromContext.js"
 import { Complexity } from "../graphql-complexity.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
 
@@ -34,8 +33,6 @@ export const [
 
 export type UserRole = Infer<typeof UserRoleSchema>
 
-const userUserRolesDataLoader = Symbol()
-
 export const UserSchema = object({
   id: optional(nullable(string())),
   username: string(),
@@ -46,9 +43,8 @@ export const UserSchema = object({
 })
 
 export const resolveUserRolesForUser = async (self: User, ctx: Pick<SchemaContext, "db" | "cache">) => {
-  const dataloader = getN2MDataLoaderFromContext(ctx, userUserRolesDataLoader, UserRoleSQL, N2MUserUserRoleSQL, "userId", "userRoleId")
-
-  const result = await dataloader.load(self.id!)
+  const result = await ctx.db.of(UserRoleSQL)
+    .findManyByN2M(N2MUserUserRoleSQL, "userId", "userRoleId", self.id)
   return result
 }
 

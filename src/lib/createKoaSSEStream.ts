@@ -1,5 +1,5 @@
 import { ParameterizedContext } from "koa"
-import { PassThrough } from "stream"
+import { PassThrough } from "node:stream"
 
 const createKoaSSEStream = <S, C>(ctx: ParameterizedContext<S, C>) => {
   ctx.request.socket.setTimeout(0)

@@ -6,7 +6,7 @@ import { projectDir } from "../lib/moduleDir.js"
 import { SQLite3Access } from "../lib/querybuilder-sqlite.js"
 import { createCreateFTSSyncTriggersN2MScript, createCreateFTSSyncTriggersScript } from "../lib/sqlite-createftssynctriggers.js"
 import { createCreateISOTimestampTriggersScript } from "../lib/sqlite-createisotimestamptriggers.js"
-import DatabaseWorker, { openDatabase, WorkerMessage, WorkerResult } from "./DatabaseWorker.js"
+import DatabaseWorker, { openDatabase, WorkerMessage } from "./DatabaseWorker.js"
 
 const setupDatabase = async () => {
   const database = openDatabase()
@@ -92,8 +92,8 @@ const spawnWorker = async () => {
         spawnWorker() // Worker died, so spawn a new one
       }
     })
-    .on("change", (ev: NonNullable<WorkerResult["change"]>) => {
-      databaseHooks.emit("change", ev)
+    .on("change", event => {
+      databaseHooks.emit("change", event)
     })
 
   workers.push(worker)
@@ -110,23 +110,28 @@ const work = (task: WorkerMessage) => {
     throw new Error("No unused DatabaseWorker found")
   }
 
-  return worker.all(task)
+  return worker.all(...task)
 }
 
 const queue = fastq.promise(work, workers.length)
-const all = (sql: string, params: any[]) => {
-  return queue.push({ sql, params })
+const all = (...task: WorkerMessage) => {
+  return queue.push(task)
 }
 
 const database = new SQLite3Access(all)
 export default database
 
-export type DatabaseChangeHook = (ev: NonNullable<WorkerResult["change"]>) => void
+setInterval(() => {
+  database.exec("PRAGMA optimize", [])
+}, 1000 * 60 * 60 * 12) // every 12 hours
+
+export type DatabaseChangeHook = (event: { type: string, table: string }) => void
 export const databaseHooks = new EventEmitter() as EventEmitter & {
   emit(event: "change", ...args: Parameters<DatabaseChangeHook>): void
   on(event: "change", listener: DatabaseChangeHook): void
 }
 
-setInterval(() => {
-  database.exec("PRAGMA optimize", [])
-}, 1000 * 60 * 60 * 24)
+database.enableCache()
+databaseHooks.on("change", ({ table }) => {
+  database.clearCache(table)
+})

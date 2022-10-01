@@ -13,10 +13,8 @@ export const BlogEntrySchema = object({
   story: size(string(), 1, 256),
   title: size(string(), 1, 256),
   message: optional(nullable(string())),
-  imageMimeType: optional(nullable(size(string(), 1, 64))),
   imageFileExtension: optional(nullable(size(string(), 1, 32))),
   createdAt: optional(nullable(string())),
-  updatedAt: optional(nullable(string())),
 })
 
 export const [
@@ -27,7 +25,6 @@ export const [
   fields: {},
   inputUnset: [
     "createdAt",
-    "updatedAt",
   ],
 })
 
@@ -39,7 +36,7 @@ export const [
 
 export type BlogEntry = Infer<typeof BlogEntrySchema>
 
-export const BlogEntryResolver: SchemaFields = {
+export const blogEntryResolver: SchemaFields = {
   query: {
     blogEntryById: gqlResolver({
       type: gqlNullable(gqlType(BlogEntryGraphQL)),

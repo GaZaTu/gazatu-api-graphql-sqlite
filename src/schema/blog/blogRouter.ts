@@ -1,65 +1,57 @@
 import Router from "@koa/router"
-import { createReadStream, createWriteStream, existsSync } from "fs"
-import { mkdir } from "fs/promises"
+import { createReadStream, existsSync } from "node:fs"
+import { mkdir, writeFile } from "node:fs/promises"
 import sharp from "sharp"
 import { projectDir } from "../../lib/moduleDir.js"
 import { assertAuthHttp } from "../assertAuth.js"
 import database from "../database.js"
 import { BlogEntry, BlogEntrySQL } from "./blogEntry.js"
 
-export const router = new Router({ prefix: "/blog" })
+export const blogRouter = new Router({ prefix: "/blog" })
 
-router.get("/entries/:id/image.:ext", async ctx => {
-  const blogEntry = await database.of(BlogEntrySQL).findOneById(ctx.params.id)
-  if (!blogEntry) {
-    ctx.status = 404
-    return
+blogRouter.get("/entries/:id/image.:ext", async ctx => {
+  const blogEntry = await database.of(BlogEntrySQL)
+    .findOneById(ctx.params.id)
+  if (!blogEntry?.imageFileExtension) {
+    throw ctx.throw(404)
   }
 
-  ctx.type = blogEntry.imageMimeType!
+  if (ctx.params.ext !== blogEntry.imageFileExtension) {
+    throw ctx.throw(404)
+  }
+
+  ctx.type = blogEntry.imageFileExtension
   ctx.body = createReadStream(await getImagePath(blogEntry, "images"))
 })
 
-router.get("/entries/:id/preview.:ext", async ctx => {
-  const blogEntry = await database.of(BlogEntrySQL).findOneById(ctx.params.id)
-  if (!blogEntry?.imageMimeType) {
-    ctx.status = 404
-    return
+blogRouter.get("/entries/:id/preview.webp", async ctx => {
+  const blogEntry = await database.of(BlogEntrySQL)
+    .findOneById(ctx.params.id)
+  if (!blogEntry?.imageFileExtension) {
+    throw ctx.throw(404)
   }
 
-  ctx.type = blogEntry.imageMimeType!
+  ctx.type = "webp"
   ctx.body = createReadStream(await getImagePath(blogEntry, "previews"))
 })
 
-router.post("/entries/:id/image.:ext", async ctx => {
+blogRouter.post("/entries/:id/image.:ext", async ctx => {
   await assertAuthHttp(ctx, ["admin"])
 
-  const blogEntry = await database.of(BlogEntrySQL).findOneById(ctx.params.id)
+  const blogEntry = await database.of(BlogEntrySQL)
+    .findOneById(ctx.params.id)
   if (!blogEntry) {
-    ctx.status = 400
-    return
+    throw ctx.throw(404)
   }
 
-  blogEntry.imageMimeType = ctx.headers["content-type"]
   blogEntry.imageFileExtension = ctx.params.ext
 
-  const imagePath = await getImagePath(blogEntry, "images")
-  const previewPath = await getImagePath(blogEntry, "previews")
-
-  const imageStream = createWriteStream(imagePath)
+  const imageChunks = []
   for await (const chunk of ctx.req) {
-    await new Promise(resolve => imageStream.write(chunk, resolve))
+    imageChunks.push(chunk)
   }
-  await new Promise(resolve => imageStream.close(resolve))
 
-  await new Promise(resolve => {
-    createReadStream(imagePath)
-      .pipe(sharp().resize({ width: 128, height: 128 }).withMetadata())
-      .pipe(createWriteStream(previewPath))
-      .on("close", resolve)
-  })
-
-  database.of(BlogEntrySQL).save(blogEntry)
+  await writeBlogEntryImage(blogEntry, Buffer.concat(imageChunks))
 
   ctx.status = 204
 })
@@ -73,6 +65,34 @@ const getImagesDir = async (kind: "images" | "previews") => {
   return imagesDir
 }
 
-const getImagePath = async (blogEntry: BlogEntry, kind: "images" | "previews") => {
-  return `${await getImagesDir(kind)}/${blogEntry.id}.${blogEntry.imageFileExtension}`
+const getImagePath = async ({ id, imageFileExtension }: BlogEntry, kind: "images" | "previews") => {
+  if (kind === "previews") {
+    imageFileExtension = "webp"
+  }
+
+  const result = `${await getImagesDir(kind)}/${id}.${imageFileExtension}`
+  return result
+}
+
+export const writeBlogEntryImage = async (blogEntry: BlogEntry, imageSource: Buffer) => {
+  const imagePath = await getImagePath(blogEntry, "images")
+  const previewPath = await getImagePath(blogEntry, "previews")
+
+  if (blogEntry.imageFileExtension === "webp") {
+    await sharp(imageSource)
+      .rotate()
+      .webp({ effort: 6, quality: 80 })
+      .toFile(imagePath)
+  } else {
+    await writeFile(imagePath, imageSource)
+  }
+
+  await sharp(imagePath)
+    .rotate()
+    .resize(256)
+    .webp({ effort: 6, quality: 50 })
+    .toFile(previewPath)
+
+  await database.of(BlogEntrySQL)
+    .save(blogEntry)
 }

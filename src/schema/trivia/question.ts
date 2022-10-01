@@ -6,15 +6,12 @@ import superstructToGraphQL from "../../lib/superstructToGraphQL.js"
 import superstructToSQL from "../../lib/superstructToSQL.js"
 import assertAuth, { currentUser } from "../assertAuth.js"
 import assertInput from "../assertInput.js"
-import { getN2MDataLoaderFromContext } from "../getDataLoaderFromContext.js"
 import { Complexity } from "../graphql-complexity.js"
 import { UserGraphQL, UserSQL } from "../misc/user.js"
 import { findManyPaginated, gqlPagination, gqlPaginationArgs } from "../pagination.js"
 import type { SchemaContext, SchemaFields } from "../schema.js"
 import { applySearchToQuery, applySortToQuery, gqlSearchArgs, gqlSortArgs } from "../searching.js"
 import { TriviaCategoryGraphQL, TriviaCategorySchema, TriviaCategorySQL } from "./category.js"
-
-const triviaQuestionCategoriesDataLoader = Symbol()
 
 export const TriviaQuestionSchema = object({
   id: optional(nullable(string())),
@@ -40,9 +37,8 @@ export const [
     categories: gqlResolver({
       type: gqlArray(gqlType(TriviaCategoryGraphQL)),
       resolve: async (self, args, ctx: SchemaContext) => {
-        const dataloader = getN2MDataLoaderFromContext(ctx, triviaQuestionCategoriesDataLoader, TriviaCategorySQL, N2MTriviaQuestionTriviaCategorySQL, "questionId", "categoryId")
-
-        const result = await dataloader.load(self.id!)
+        const result = await ctx.db.of(TriviaCategorySQL)
+          .findManyByN2M(N2MTriviaQuestionTriviaCategorySQL, "questionId", "categoryId", self.id)
         return result
       },
       extensions: {

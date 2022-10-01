@@ -3,12 +3,15 @@ import { parentPort, Worker, workerData } from "node:worker_threads"
 import { DeSia, Sia } from "sializer"
 import { modulePath, projectDir } from "../lib/moduleDir.js"
 
-const sia = new Sia({ size: 0 })
+const sia = Object.assign(new Sia({ size: 0 }), {
+  writeString(str: string, offset: number) {
+    return (sia.buffer as any).utf8Write(str, offset)
+  },
+})
 const encodeValue = (view: DataView, value: any) => {
   const offset = view.byteLength
 
-  const buffer = Buffer.from(view.buffer, offset)
-  Object.assign(sia, { buffer })
+  sia.buffer = Buffer.from(view.buffer, offset)
   const encoded = sia.serialize(value)
 
   view.setUint32(0, encoded.byteLength)
@@ -25,19 +28,22 @@ const decodeValue = (view: DataView) => {
   return decoded
 }
 
-export type WorkerMessage = {
-  sql: string
-  params: any[]
-}
+export type WorkerMessage = [
+  sql: string,
+  params: any[],
+]
 
-export type WorkerResult = {
-  data?: any[]
-  error?: any
-  change?: {
-    type: "INSERT" | "UPDATE" | "DELETE"
-    table: string
-  }
-}
+export type WorkerResult = [
+  error?: any,
+  data?: [
+    rows: any[][],
+    cols: string[],
+  ],
+  change?: [
+    type: "INSERT" | "UPDATE" | "DELETE",
+    table: string,
+  ],
+]
 
 export const openDatabase = () => {
   const databaseFile = (() => {
@@ -70,8 +76,8 @@ if (parentPort) {
   const sharedBufferView = new DataView(sharedBuffer, 0, 32 / 8)
 
   parentPort?.on("message", () => {
-    let { sql, params } = decodeValue(sharedBufferView) as WorkerMessage
-    const result: WorkerResult = {}
+    let [sql, params] = decodeValue(sharedBufferView) as WorkerMessage
+    const result: WorkerResult = []
 
     try {
       sql = sql.trimStart()
@@ -88,9 +94,15 @@ if (parentPort) {
       const isSelect = sql.startsWith("SELECT")
 
       if (isSelect) {
-        result.data = statement.all(...params)
+        result[1] = [
+          statement.raw().all(...params),
+          statement.columns().map(c => c.name),
+        ]
       } else {
-        result.data = [statement.run(...params)]
+        result[1] = [
+          [[statement.run(...params)]],
+          ["RunResult"],
+        ]
 
         const isInsert = sql.startsWith("INSERT")
         const isUpdate = sql.startsWith("UPDATE")
@@ -106,18 +118,18 @@ if (parentPort) {
 
           if (regex) {
             const [, table] = regex.exec(sql)!
-            result.change = { type, table }
+            result[2] = [type, table]
           }
         }
       }
     } catch (error: any) {
       if (typeof error === "object") {
-        result.error = {
+        result[0] = {
           ...error,
           message: error.message,
         }
       } else {
-        result.error = error
+        result[0] = error
       }
     } finally {
       encodeValue(sharedBufferView, result)
@@ -126,7 +138,7 @@ if (parentPort) {
   })
 }
 
-export default class DatabaseWorker extends Worker {
+class DatabaseWorker extends Worker {
   private _task?: {
     resolve: (result: any[]) => void
     reject: (error: Error) => void
@@ -148,32 +160,36 @@ export default class DatabaseWorker extends Worker {
 
     this
       .on("message", () => {
-        if (!this._task) {
-          throw new Error("UNEXPECTED")
-        }
-
-        const result = decodeValue(this._sharedBufferView) as WorkerResult
-
-        const { resolve, reject } = this._task
+        const { resolve, reject } = this._task!
         this._task = undefined
 
-        if (result.error) {
-          if (typeof result.error === "object") {
-            reject(Object.assign(new Error(), result.error))
-          } else {
-            reject(result.error)
+        const [error, data, change] = decodeValue(this._sharedBufferView) as WorkerResult
+
+        if (error) {
+          if (typeof error === "object") {
+            return reject(Object.assign(new Error(), error))
           }
+
+          return reject(error)
         }
 
-        if (result.change) {
-          this.emit("change", result.change)
+        if (change) {
+          this.emit("change", {
+            type: change[0],
+            table: change[1],
+          })
         }
 
-        resolve(result.data!)
+        const cols = data![1]
+        const rows = data![0].map(row => {
+          return row.reduce((r, c, i) => { r[cols[i]] = c; return r }, {} as Record<string, any>)
+        })
+
+        return resolve(rows)
       })
   }
 
-  all(message: WorkerMessage) {
+  all(...message: WorkerMessage) {
     return new Promise<any[]>((resolve, reject) => {
       this._task = { resolve, reject }
       encodeValue(this._sharedBufferView, message)
@@ -184,4 +200,16 @@ export default class DatabaseWorker extends Worker {
   get inUse() {
     return !!this._task
   }
+}
+
+export default DatabaseWorker
+
+interface DatabaseWorker {
+  on(event: "change", listener: (event: { type: string, table: string }) => void): this
+  on(event: "error", listener: (err: Error) => void): this
+  on(event: "exit", listener: (exitCode: number) => void): this
+  on(event: "message", listener: (value: any) => void): this
+  on(event: "messageerror", listener: (error: Error) => void): this
+  on(event: "online", listener: () => void): this
+  on(event: string | symbol, listener: (...args: any[]) => void): this
 }

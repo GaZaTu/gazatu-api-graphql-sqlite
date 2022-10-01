@@ -969,20 +969,31 @@ export abstract class DatabaseAccess {
   abstract exec(query: string, values: any[]): Promise<Record<string, any>[]>
 
   private _dataloaders = {
-    count: new Map<string | SQLEntity, Map<string, DataLoader<unknown, any>>>(),
-    findMany: new Map<string | SQLEntity, Map<string, DataLoader<unknown, any>>>(),
-    findOne: new Map<string | SQLEntity, Map<string, DataLoader<unknown, any>>>(),
+    count: new Map<string, Map<unknown, DataLoader<unknown, any>>>(),
+    findMany: new Map<string, Map<unknown, DataLoader<unknown, any>>>(),
+    findManyByN2M: new Map<string, Map<unknown, DataLoader<unknown, any>>>(),
+    findOne: new Map<string, Map<unknown, DataLoader<unknown, any>>>(),
   }
 
-  // clearCache() {
-  //   for (const dataloaderMap of Object.values(this._dataloaders)) {
-  //     for (const [, dataloaders] of dataloaderMap) {
-  //       for (const [, dataloader] of dataloaders) {
-  //         dataloader.clearAll()
-  //       }
-  //     }
-  //   }
-  // }
+  private _useCache = false
+
+  enableCache(useCache = true) {
+    this._useCache = useCache
+  }
+
+  clearCache(updatedTable?: string) {
+    for (const dataloaderMap of Object.values(this._dataloaders)) {
+      for (const [table, dataloaders] of dataloaderMap) {
+        if (updatedTable && table !== updatedTable) {
+          continue
+        }
+
+        for (const [, dataloader] of dataloaders) {
+          dataloader.clearAll()
+        }
+      }
+    }
+  }
 
   private createTableAccess<T extends Record<string, any> = Record<string, any>>(table: string | SQLEntity<T>) {
     const hasIdColumn = (() => {
@@ -992,6 +1003,8 @@ export abstract class DatabaseAccess {
 
       return !!table.schema.id
     })()
+
+    const maxBatchSize = 128
 
     const count = async (condition?: SqlExpr) => {
       return await this
@@ -1010,18 +1023,18 @@ export abstract class DatabaseAccess {
         return await count(condition)
       }
 
-      let record = this._dataloaders.count.get(table)
+      let record = this._dataloaders.count.get(String(table))
       if (!record) {
         record = new Map()
 
-        this._dataloaders.count.set(table, record)
+        this._dataloaders.count.set(String(table), record)
       }
 
       let dataloader = record.get(condition.query)
       if (!dataloader) {
         dataloader = new DataLoader(async keys => {
           const filter = keys.slice()
-          while (filter.length < 128) {
+          while (filter.length < maxBatchSize) {
             filter.push("")
           }
 
@@ -1039,7 +1052,7 @@ export abstract class DatabaseAccess {
 
           return keys
             .map(key => map.get(key) ?? 0)
-        }, { maxBatchSize: 128, cache: false })
+        }, { maxBatchSize, cache: this._useCache })
 
         record.set(condition.query, dataloader)
       }
@@ -1073,18 +1086,18 @@ export abstract class DatabaseAccess {
         return await findMany(condition)
       }
 
-      let record = this._dataloaders.findMany.get(table)
+      let record = this._dataloaders.findMany.get(String(table))
       if (!record) {
         record = new Map()
 
-        this._dataloaders.findMany.set(table, record)
+        this._dataloaders.findMany.set(String(table), record)
       }
 
       let dataloader = record.get(condition.query)
       if (!dataloader) {
         dataloader = new DataLoader(async values => {
           const filter = values.slice()
-          while (filter.length < 128) {
+          while (filter.length < maxBatchSize) {
             filter.push("")
           }
 
@@ -1092,7 +1105,7 @@ export abstract class DatabaseAccess {
 
           return values
             .map(value => list.filter(e => e[condition.left.rawName] === value))
-        }, { maxBatchSize: 128, cache: false })
+        }, { maxBatchSize, cache: this._useCache })
 
         record.set(condition.query, dataloader)
       }
@@ -1103,11 +1116,54 @@ export abstract class DatabaseAccess {
 
     const findManyById = (ids: (string | number | null | undefined)[]) => {
       const filter = ids.slice()
-      while (filter.length < 128) {
+      while (filter.length < maxBatchSize) {
         filter.push("")
       }
 
       return findMany(IN(sqlField`id`, filter))
+    }
+
+    const findManyByN2MWithDataLoader = async <N2M = any>(n2mTable: string | SQLEntity<N2M>, parentIdName: keyof N2M, childIdName: keyof N2M, parentId: string | number | null | undefined) => {
+      let record = this._dataloaders.findManyByN2M.get(String(table))
+      if (!record) {
+        record = new Map()
+
+        this._dataloaders.findManyByN2M.set(String(table), record)
+      }
+
+      let dataloader = record.get(String(n2mTable))
+      if (!dataloader) {
+        const parentIdField = new SqlField(parentIdName as string)
+        const childIdField = new SqlField(childIdName as string)
+
+        const { query } = sqlQuery`
+SELECT
+  src.*,
+  n2m.${parentIdField}
+FROM ${n2mTable} n2m
+JOIN ${table} src ON src.id = n2m.${childIdField}
+WHERE n2m.${parentIdField} IN ${[...Array(maxBatchSize).keys()]}
+        `
+
+        dataloader = new DataLoader(async ids => {
+          const filter = ids.slice()
+          while (filter.length < maxBatchSize) {
+            filter.push("")
+          }
+
+          const n2m = await this.exec(query.trim(), filter)
+
+          return ids
+            .map(id => {
+              return n2m.filter(s => s[parentIdName as string] === id)
+            })
+        }, { maxBatchSize, cache: this._useCache })
+
+        record.set(String(n2mTable), dataloader)
+      }
+
+      const result = await dataloader.load(parentId)
+      return result as T[]
     }
 
     const findOne = (condition: SqlExpr) => {
@@ -1127,18 +1183,18 @@ export abstract class DatabaseAccess {
         return await findOne(condition)
       }
 
-      let record = this._dataloaders.findOne.get(table)
+      let record = this._dataloaders.findOne.get(String(table))
       if (!record) {
         record = new Map()
 
-        this._dataloaders.findOne.set(table, record)
+        this._dataloaders.findOne.set(String(table), record)
       }
 
       let dataloader = record.get(condition.query)
       if (!dataloader) {
         dataloader = new DataLoader(async values => {
           const filter = values.slice()
-          while (filter.length < 128) {
+          while (filter.length < maxBatchSize) {
             filter.push("")
           }
 
@@ -1149,7 +1205,7 @@ export abstract class DatabaseAccess {
 
           return values
             .map(value => map.get(value))
-        }, { maxBatchSize: 128, cache: false })
+        }, { maxBatchSize, cache: this._useCache })
 
         record.set(condition.query, dataloader)
       }
@@ -1221,7 +1277,7 @@ export abstract class DatabaseAccess {
 
     const removeManyById = (ids: (string | number)[]) => {
       const filter = ids.slice()
-      while (filter.length < 128) {
+      while (filter.length < maxBatchSize) {
         filter.push("")
       }
 
@@ -1262,7 +1318,7 @@ export abstract class DatabaseAccess {
 
     const updateManyById = (expr: SqlExpr, ids: (string | number)[]) => {
       const filter = ids.slice()
-      while (filter.length < 128) {
+      while (filter.length < maxBatchSize) {
         filter.push("")
       }
 
@@ -1296,6 +1352,7 @@ export abstract class DatabaseAccess {
       findId,
       findMany: findManyWithDataLoader,
       findManyById,
+      findManyByN2M: findManyByN2MWithDataLoader,
       findOne: findOneWithDataLoader,
       findOneById,
       exists,
