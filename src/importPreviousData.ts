@@ -184,6 +184,7 @@ if (true) {
   })
 }
 
+await database.exec("PRAGMA wal_checkpoint(PASSIVE)", [])
 await database.exec("PRAGMA optimize", [])
 
 process.exit(0)
