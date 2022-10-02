@@ -897,7 +897,14 @@ export const sql = (strings: TemplateStringsArray, ..._values: any[]) => {
       if (Array.isArray(value)) {
         const array = value.slice()
         while (array.length < 32) {
-          array.push(null)
+          switch (typeof array[0]) {
+            case "string":
+              array.push("")
+              break
+            case "number":
+              array.push(0)
+              break
+          }
         }
 
         return `${prev}(${array.map(() => "?").join(", ")})${curr}`
@@ -919,7 +926,14 @@ export const sql = (strings: TemplateStringsArray, ..._values: any[]) => {
       if (Array.isArray(value)) {
         const array = value.slice()
         while (array.length < 32) {
-          array.push(null)
+          switch (typeof array[0]) {
+            case "string":
+              array.push("")
+              break
+            case "number":
+              array.push(0)
+              break
+          }
         }
 
         return array
