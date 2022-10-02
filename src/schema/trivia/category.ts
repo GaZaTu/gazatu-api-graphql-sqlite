@@ -77,6 +77,7 @@ export const triviaCategoryResolver: SchemaFields = {
           .select(TriviaCategorySQL)
           .where((typeof args?.verified === "boolean") && sql`${TriviaCategorySQL.schema.verified} = ${args.verified}`)
           .where((typeof args?.disabled === "boolean") && sql`${TriviaCategorySQL.schema.disabled} = ${args.disabled}`)
+          .orderBy(TriviaCategorySQL.schema.name, "ASC")
           .findMany(TriviaCategorySQL)
         return result
       },
@@ -100,6 +101,8 @@ export const triviaCategoryResolver: SchemaFields = {
         }
 
         assertInput(TriviaCategorySchema, input)
+
+        input.name = input.name.trim()
 
         const [result] = await ctx.db.of(TriviaCategorySQL)
           .save(input)

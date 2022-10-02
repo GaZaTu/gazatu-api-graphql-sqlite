@@ -39,7 +39,7 @@ const createSelectScript = (data: QueryBuilderData) => {
 
   for (let i = 0; i < (data.ordering?.length ?? 0); i++) {
     script += (i === 0) ? "\nORDER BY\n  " : ",\n  "
-    script += `${data.ordering![i].field.query} ${data.ordering![i].direction ?? ""} ${data.ordering![i].nulls ?? ""}`
+    script += `${data.ordering![i].field.query} COLLATE NOCASE ${data.ordering![i].direction ?? ""} ${data.ordering![i].nulls ?? ""}`
   }
 
   if (data.limit || data.offset) {

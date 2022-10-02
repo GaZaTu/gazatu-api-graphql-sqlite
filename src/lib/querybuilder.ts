@@ -1020,6 +1020,8 @@ export abstract class DatabaseAccess {
 
     const maxBatchSize = 128
 
+    // TODO: let orderBy:
+
     const count = async (condition?: SqlExpr) => {
       return await this
         .select(["count(*)"])

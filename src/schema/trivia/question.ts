@@ -255,6 +255,16 @@ export const triviaQuestionResolver: SchemaFields = {
         }
 
         for (const category of categories) {
+          if (!category.id) {
+            assertInput(TriviaCategorySchema, category)
+
+            category.name = category.name.trim()
+
+            const [{ id }] = await ctx.db.of(TriviaCategorySQL)
+              .save(category)
+            category.id = id
+          }
+
           await ctx.db.of(N2MTriviaQuestionTriviaCategorySQL)
             .save({
               questionId: result.id!,

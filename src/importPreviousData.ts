@@ -40,6 +40,21 @@ const categoryAliases: Record<string, string | undefined> = {
   "Words": "General Knowledge",
   "memes": "Memes",
   "nymn": "Twitch",
+  "Cartoons": "TV",
+  "gazatu2 trivia FeelsDankMan": "General Knowledge",
+  "Maths": "Math",
+  "Marcedone": "Twitch",
+  "Country": "General Knowledge",
+  "Programming": "Computer Science",
+  "Cunts": "__IGNORE__",
+  "Literature": "General Knowledge",
+  "test": "__IGNORE__",
+  "Who": "__IGNORE__",
+  "Chat Commands": "Twitch",
+  "Streamers": "Twitch",
+  "World ": "World",
+  "Space": "Science",
+  "W_OMEGALUL_W": "WorldOfWarcraft",
 }
 
 type TriviaQuestion = {
@@ -79,6 +94,10 @@ if (true) {
 
     for (const question of responseJson) {
       question.category = categoryAliases[question.category] ?? question.category
+
+      if (question.category === "__IGNORE__") {
+        continue
+      }
 
       let categoryId = undefined as string | undefined
       try {
