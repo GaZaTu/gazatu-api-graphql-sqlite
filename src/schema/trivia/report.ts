@@ -43,6 +43,9 @@ export const [
   TriviaReportSQL,
 ] = superstructToSQL(TriviaReportSchema, {
   name: "TriviaReport",
+  skip: [
+    "question",
+  ],
 })
 
 export type TriviaReport = Infer<typeof TriviaReportSchema>
