@@ -77,10 +77,12 @@ export const createKoa = (middlewares: Koa.Middleware<any, any>[]) => {
       ctx.status = err.status ?? 500
       ctx.type = "application/json"
       ctx.body = JSON.stringify({
-        name: err.name,
-        message: err.message,
-        status: err.status,
-        stack: (process.env.NODE_ENV !== "production") ? err.stack : undefined,
+        errors: [{
+          name: err.name,
+          message: err.message,
+          status: err.status,
+          stack: (process.env.NODE_ENV !== "production") ? err.stack : undefined,
+        }],
       }, undefined, (process.env.NODE_ENV !== "production") ? "  " : undefined)
     }
   })

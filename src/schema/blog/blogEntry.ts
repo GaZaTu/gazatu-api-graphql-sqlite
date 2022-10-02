@@ -65,6 +65,7 @@ export const blogEntryResolver: SchemaFields = {
       resolve: async (self, { args }, ctx) => {
         const query = ctx.db
           .select(BlogEntrySQL)
+          .orderBy(BlogEntrySQL.schema.createdAt, "DESC")
 
         const result = await findManyPaginated(query, args, BlogEntrySQL)
         return result
