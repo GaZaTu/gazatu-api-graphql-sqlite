@@ -29,7 +29,7 @@ const categoryAliases: Record<string, string | undefined> = {
   "Homosexuals": "General Knowledge",
   "Location": "Memes",
   "L OMEGALUL L": "LeagueOfLegends",
-  "Michael Jackson": "General Knowledge",
+  "Michael Jackson": "Music",
   "Netflix": "General Knowledge",
   "Period": "Sex",
   "Pewdiepie": "YouTube",
@@ -55,6 +55,9 @@ const categoryAliases: Record<string, string | undefined> = {
   "World ": "World",
   "Space": "Science",
   "W_OMEGALUL_W": "WorldOfWarcraft",
+  "Brand New": "Music",
+  "Buick": "Cars",
+  "Pepega": "Twitch",
 }
 
 type TriviaQuestion = {
