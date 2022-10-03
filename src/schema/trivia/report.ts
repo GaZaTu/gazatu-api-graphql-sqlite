@@ -102,14 +102,19 @@ export const triviaReportResolver: SchemaFields = {
           type: gqlType(TriviaReportGraphQLInput),
         },
       },
-      resolve: async (self, { input }, ctx) => {
-        if (input.id) {
+      resolve: async (self, { input: _input }, ctx) => {
+        if (_input.id) {
           throw new Error("trivia reports are immutable")
         }
 
-        input.questionId = input.question.id!
+        _input.questionId = _input.question.id!
+        assertInput(TriviaReportSchema, _input)
 
-        assertInput(TriviaReportSchema, input)
+        const {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          question,
+          ...input
+        } = _input
 
         const [result] = await ctx.db.of(TriviaReportSQL)
           .save(input)
