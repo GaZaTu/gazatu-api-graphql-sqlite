@@ -7,7 +7,9 @@ import { assertAuthHttp } from "../assertAuth.js"
 import database from "../database.js"
 import { BlogEntry, BlogEntrySQL } from "./blogEntry.js"
 
-export const blogRouter = new Router({ prefix: "/blog" })
+const blogRouter = new Router({ prefix: "/blog" })
+
+export default blogRouter
 
 blogRouter.get("/entries/:id/image.:ext", async ctx => {
   const blogEntry = await database.of(BlogEntrySQL)

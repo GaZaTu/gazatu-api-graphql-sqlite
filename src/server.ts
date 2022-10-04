@@ -7,8 +7,9 @@ import Koa from "koa"
 import body from "koa-body"
 import json from "koa-json"
 import logger from "koa-logger"
-import { blogRouter } from "./schema/blog/blogRouter.js"
+import blogRouter from "./schema/blog/blogRouter.js"
 import graphqlRouter from "./schema/graphqlRouter.js"
+import miscRouter from "./schema/misc/miscRouter.js"
 import triviaRouter from "./schema/trivia/triviaRouter.js"
 
 export const getHost = () => {
@@ -147,6 +148,7 @@ export const createHttpServer = (callback: (req: http.IncomingMessage, res: http
 export const listen = async () => {
   const middlewares = [
     blogRouter.middleware(),
+    miscRouter.middleware(),
     triviaRouter.middleware(),
     graphqlRouter.middleware(),
   ]
