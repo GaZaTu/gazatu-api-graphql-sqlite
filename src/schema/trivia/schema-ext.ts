@@ -38,10 +38,10 @@ export const triviaSchemaExtensionResolver: SchemaFields = {
 
         return await ctx.db
           .select([
-            [sql`SELECT count(*) FROM ${TriviaQuestionSQL}`, "questions"],
-            [sql`SELECT count(*) FROM ${TriviaQuestionSQL} WHERE ${TriviaQuestionSQL.schema.verified} = false`, "questionsNotVerified"],
-            [sql`SELECT count(*) FROM ${TriviaCategorySQL}`, "categories"],
-            [sql`SELECT count(*) FROM ${TriviaCategorySQL} WHERE ${TriviaCategorySQL.schema.verified} = false`, "categoriesNotVerified"],
+            [sql`SELECT count(*) FROM ${TriviaQuestionSQL} WHERE ${TriviaQuestionSQL.schema.disabled} = false`, "questions"],
+            [sql`SELECT count(*) FROM ${TriviaQuestionSQL} WHERE ${TriviaQuestionSQL.schema.disabled} = false AND ${TriviaQuestionSQL.schema.verified} = false`, "questionsNotVerified"],
+            [sql`SELECT count(*) FROM ${TriviaCategorySQL} WHERE ${TriviaCategorySQL.schema.disabled} = false`, "categories"],
+            [sql`SELECT count(*) FROM ${TriviaCategorySQL} WHERE ${TriviaCategorySQL.schema.disabled} = false AND ${TriviaCategorySQL.schema.verified} = false`, "categoriesNotVerified"],
             [sql`SELECT count(*) FROM ${TriviaReportSQL}`, "reports"],
           ])
           .findOne<any>()
