@@ -14,7 +14,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/adm-zip": "^0.5.0",
-    "@types/better-sqlite3": "^7.6.0",
+    "@types/better-sqlite3": "^7.6.2",
     "@types/config": "^3.3.0",
     "@types/jsonwebtoken": "^8.5.9",
     "@types/koa": "^2.13.5",
@@ -23,19 +23,19 @@
     "@types/koa-json": "^2.0.20",
     "@types/koa-json-error": "^3.1.4",
     "@types/koa-logger": "^3.1.2",
-    "@types/node": "^18.7.18",
+    "@types/node": "^16.11.65",
     "@types/sharp": "^0.31.0",
-    "@typescript-eslint/eslint-plugin": "^5.37.0",
-    "@typescript-eslint/parser": "^5.37.0",
+    "@typescript-eslint/eslint-plugin": "^5.40.0",
+    "@typescript-eslint/parser": "^5.40.0",
     "chai": "^4.3.6",
-    "eslint": "^8.23.1",
+    "eslint": "^8.25.0",
     "mocha": "^10.0.0",
     "tsc-watch": "^5.0.3",
-    "typescript": "^4.8.3"
+    "typescript": "^4.8.4"
   },
   "dependencies": {
-    "@graphql-tools/stitch": "^8.7.11",
-    "@koa/cors": "^3.4.1",
+    "@graphql-tools/stitch": "^8.7.13",
+    "@koa/cors": "^4.0.0",
     "@koa/router": "^12.0.0",
     "adm-zip": "^0.5.9",
     "argon2": "^0.29.1",
@@ -53,8 +53,8 @@
     "koa-jwt": "^4.0.3",
     "koa-logger": "^3.2.1",
     "node-fetch": "^3.2.10",
-    "sharp": "^0.31.0",
-    "superstruct": "^0.16.0",
+    "sharp": "^0.31.1",
+    "superstruct": "^0.16.5",
     "ulid": "^2.3.0"
   }
 }
