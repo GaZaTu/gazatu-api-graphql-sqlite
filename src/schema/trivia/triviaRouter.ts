@@ -66,6 +66,7 @@ triviaRouter.get("/questions", async ctx => {
             hint1
             hint2
             submitter
+            createdAt
           }
         }
       }
