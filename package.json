@@ -54,7 +54,6 @@
     "koa-logger": "^3.2.1",
     "node-fetch": "^3.2.10",
     "sharp": "^0.31.0",
-    "sializer": "^0.2.0",
     "superstruct": "^0.16.0",
     "ulid": "^2.3.0"
   }

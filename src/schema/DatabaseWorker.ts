@@ -1,32 +1,6 @@
 import sqlite3 from "better-sqlite3"
-import { parentPort, Worker, workerData } from "node:worker_threads"
-import { DeSia, Sia } from "sializer"
+import { parentPort, Worker } from "node:worker_threads"
 import { modulePath, projectDir } from "../lib/moduleDir.js"
-
-const sia = Object.assign(new Sia({ size: 0 }), {
-  writeString(str: string, offset: number) {
-    return (sia.buffer as any).utf8Write(str, offset)
-  },
-})
-const encodeValue = (view: DataView, value: any) => {
-  const offset = view.byteLength
-
-  sia.buffer = Buffer.from(view.buffer, offset)
-  const encoded = sia.serialize(value)
-
-  view.setUint32(0, encoded.byteLength)
-}
-
-const desia = new DeSia({})
-const decodeValue = (view: DataView) => {
-  const offset = view.byteLength
-  const length = view.getUint32(0)
-
-  const buffer = Buffer.from(view.buffer, offset, length)
-  const decoded = desia.deserialize(buffer)
-
-  return decoded
-}
 
 export type WorkerMessage = [
   sql: string,
@@ -72,11 +46,8 @@ const sqlUpdateRegex = /^UPDATE\s"?(\w+)"?/
 const sqlDeleteRegex = /^DELETE\sFROM\s"?(\w+)"?/
 
 if (parentPort) {
-  const sharedBuffer = workerData.sharedBuffer as SharedArrayBuffer
-  const sharedBufferView = new DataView(sharedBuffer, 0, 32 / 8)
-
-  parentPort?.on("message", () => {
-    let [sql, params] = decodeValue(sharedBufferView) as WorkerMessage
+  parentPort?.on("message", (message: WorkerMessage) => {
+    let [sql, params] = message
     const result: WorkerResult = []
 
     try {
@@ -132,8 +103,7 @@ if (parentPort) {
         result[0] = error
       }
     } finally {
-      encodeValue(sharedBufferView, result)
-      parentPort?.postMessage(undefined)
+      parentPort?.postMessage(result)
     }
   })
 }
@@ -144,26 +114,15 @@ class DatabaseWorker extends Worker {
     reject: (error: Error) => void
   }
 
-  private _sharedBufferView: DataView
-
   constructor() {
-    const sharedBuffer = new SharedArrayBuffer(1024 * 1024 * 10) // 10 MB
-    const sharedBufferView = new DataView(sharedBuffer, 0, 32 / 8)
-
-    super(modulePath(import.meta.url), {
-      workerData: {
-        sharedBuffer,
-      },
-    })
-
-    this._sharedBufferView = sharedBufferView
+    super(modulePath(import.meta.url))
 
     this
-      .on("message", () => {
+      .on("message", (result: WorkerResult) => {
         const { resolve, reject } = this._task!
         this._task = undefined
 
-        const [error, data, change] = decodeValue(this._sharedBufferView) as WorkerResult
+        const [error, data, change] = result
 
         if (error) {
           if (typeof error === "object") {
@@ -192,8 +151,7 @@ class DatabaseWorker extends Worker {
   all(...message: WorkerMessage) {
     return new Promise<any[]>((resolve, reject) => {
       this._task = { resolve, reject }
-      encodeValue(this._sharedBufferView, message)
-      this.postMessage(undefined)
+      this.postMessage(message)
     })
   }
 
