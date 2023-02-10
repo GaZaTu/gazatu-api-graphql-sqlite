@@ -502,8 +502,23 @@ export class Selector implements HasQuery, HasValues {
       return this
     }
 
+    if (typeof field === "string") {
+      field = new SqlField(field)
+    }
+
+    if (field instanceof SqlField) {
+      for (const clause of (this._data.ordering ?? [])) {
+        if (clause.field instanceof SqlField) {
+          if (clause.field.name === field.name) {
+            Object.assign(clause, { direction, nulls })
+            return this
+          }
+        }
+      }
+    }
+
     const clause: QueryBuilderOrderClause = {
-      field: (typeof field === "string") ? new SqlField(field) : field,
+      field,
       direction,
       nulls,
     }
@@ -656,6 +671,10 @@ export class Selector implements HasQuery, HasValues {
   asExpr() {
     const result = new SqlExpr(this.query, SqlOperator.CUSTOM, this.values)
     return result
+  }
+
+  get isOrdered() {
+    return (this._data.ordering?.length ?? 0) > 0
   }
 }
 
@@ -998,13 +1017,23 @@ export abstract class DatabaseAccess {
   clearCache(updatedTable?: string) {
     for (const dataloaderMap of Object.values(this._dataloaders)) {
       for (const [table, dataloaders] of dataloaderMap) {
-        if (updatedTable && table !== updatedTable) {
+        if (updatedTable && (table !== updatedTable)) {
           continue
         }
 
         for (const [, dataloader] of dataloaders) {
           dataloader.clearAll()
         }
+      }
+    }
+
+    for (const [, dataloaders] of this._dataloaders.findManyByN2M) {
+      for (const [n2mTable, dataloader] of dataloaders) {
+        if (n2mTable !== updatedTable) {
+          continue
+        }
+
+        dataloader.clearAll()
       }
     }
   }
